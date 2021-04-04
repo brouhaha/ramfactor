@@ -1,0 +1,9 @@
+\#*
+.#*
+*~
+*.bin
+*.bin.orig
+*.p
+*.lst
+*.dis
+old
