@@ -38,6 +38,20 @@ skip2	macro
 	endm
 
 
+ch_bs		equ	$08
+ch_lf		equ	$0a
+ch_vt		equ	$0b
+ch_cr		equ	$0d
+ch_nak		equ	$15
+ch_esc		equ	$1b
+
+key_left	equ	ch_bs
+key_right	equ	ch_nak
+key_up		equ	ch_vt
+key_down	equ	ch_lf
+
+
+
 L00	equ	$00
 Z39	equ	$39
 Z3e	equ	$3e
@@ -1721,8 +1735,8 @@ L0c9b:	iny		; advance pointer
 ; table includes all but three of the letters ETAOINSHRDLC, the 13
 ; most common letters of the English language, in an arbitrary
 ; permutation that might be intended to confuse reverse-engineers.
-D0ca1:	fcb	$00	; escabe to second table
-	fcb	$8d	; carriage return
+D0ca1:	fcb	$00		; escabe to second table
+	fcb	ch_cr+$80	; carriage return
 	fcsm	"RAM.TIS GOLDE"
 
 ; mibble to character decode table 2
@@ -1952,34 +1966,34 @@ L0adb:	iny
 L0af1:	jsr	bell12
 	jmp	L0a7d
 
-D0af7:	fcb	$ce
+D0af7:	fcb	'N'+$80		; Name a partition
 	fdb	L0b51-1
 	
-	fcb	'C'+$80
+	fcb	'C'+$80		; Clear a partition
 	fdb	L0bf5-1
 	
-	fcb	'S'+$80
+	fcb	'S'+$80		; change Size of a partition
 	fdb	L0b71-1
 
-	fcb	$8d
+	fcb	ch_cr+$80	; boot partition
 	fdb	L0b16-1
 	
-	fcb	$88
+	fcb	key_left+$80
 	fdb	L0b39-1
 	
-	fcb	$8b
+	fcb	key_up+$80
 	fdb	L0b39-1
 	
-	fcb	$8a
+	fcb	key_down+$80
 	fdb	L0b49-1
 	
-	fcb	$95
+	fcb	key_right+$80
 	fdb	L0b49-1
 	
-	fcb	$9b
+	fcb	ch_esc+$80	; quit
 	fdb	L0b2b-1
 	
-	fcb	'R'+$80
+	fcb	'R'+$80		; Reconfigure
 	fdb	L0b24-1
 	
 	fcb	$00
@@ -2222,14 +2236,14 @@ L0cb8:	iny		; advance pointer
 ; table includes all but one of the letters ETAOINSHRDLC, the 13
 ; most common letters of the English language, in an arbitrary
 ; permutation that might be intended to confuse reverse-engineers.
-D0cbe:	fcb	$00	; escape to second table
-	fcb	$8d	; carriage return
-	fcb	$01	; two spaces
+D0cbe:	fcb	$00		; escape to second table
+	fcb	ch_cr+$80	; carriage return
+	fcb	$01		; two spaces
 	fcsm	"GLITCH REASO"
 
 ; nibble to character decode table 2
 D0ccd:	fcsm	"N"
-	fcb	$00	; end of message
+	fcb	$00		; end of message
 	fcsm	"FPUDM-19=BQWZY"
 
 ; compressed message table
@@ -2366,11 +2380,11 @@ L0e54:	sta	D0908,X
 L0e5b:	jsr	rdkey_uc
 	cmp	#$88
 	beq	L0e84
-	cmp	#$8d
+	cmp	#ch_cr+$80
 	beq	L0e82
-	cmp	#$9b
+	cmp	#ch_esc+$80
 	beq	L0e83
-	cmp	#$a0
+	cmp	#' '+$80
 	bcs	L0e74
 L0e6e:	jsr	bell12
 	jmp	L0e5b
