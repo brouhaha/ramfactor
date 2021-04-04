@@ -23,6 +23,20 @@ v	set	$00
 	endm
 	endm
 
+fcsm	macro	s
+	irpc	c,s
+	fcb	'c'|$80
+	endm
+	endm
+
+skip1	macro
+	fcb	$24	; BIT zero page opcoe
+	endm
+
+skip2	macro
+	fcb	$2c	; BIT absolute opcode
+	endm
+
 
 L00	equ	$00
 Z39	equ	$39
@@ -77,14 +91,14 @@ Dbffb	equ	$bffb
 
 kbd		equ	$c000	; read keyboard
 rdmainram	equ	$c002	; IIe read main RAM
-rdcardram	equ	$c003	; IIe read auxilliary RAM
+rdauxram	equ	$c003	; IIe read auxilliary RAM
 wrmainram	equ	$c004	; IIe write main RAM
-wrcardram	equ	$c005	; IIe write auxilliary RAM
+wrauxmem	equ	$c005	; IIe write auxilliary RAM
 clr80vid	equ	$c00c	; IIe disable 80col
 clraltchar	equ	$c00e	; IIe disable altchar
 kbdstrb		equ	$c010	; clea rkeyboard strobe
-rdramrd		equ	$c013	; IIe MSB reads 1 if main RAM read enabled
-rdramwrt	equ	$c014	; IIe MSB reads 1 if main RAM write enabled
+rdramrd		equ	$c013	; IIe MSB reads 1 if aux RAM read enabled
+rdramwrt	equ	$c014	; IIe MSB reads 1 if aux RAM write enabled
 
 Dc0nf	equ	$c08f	; bank select, add slot*$10
 	
@@ -376,10 +390,10 @@ Lc83f:	lda	(Z43),Y
 
 ret_pc_err_bad_unit_num:
 	lda	#$11
-	fcb	$2c	; BIT abs opcode to skip two bytes
+	skip2
 ret_pc_err_bad_cmd:
 	lda	#pc_err_bad_cmd
-	fcb	$2c	; BIT abs opcode to skip two bytes
+	skip2
 ret_pc_err_bad_pcnt:
 	lda	#pc_err_bad_pcnt
 LC863:	sta	D04f8
@@ -477,7 +491,7 @@ Lc8e0:	beq	Lc8e9
 	ldy	#$19
 	cmp	#$03
 	bne	Lc89f
-	fcb	$2c	; BIT abs opcode to skip two bytes
+	skip2
 Lc8e9:	ldy	#$04
 	sty	D0578
 	dey
@@ -516,7 +530,7 @@ Lc923:	jsr	Sc964
 	php
 	asl
 	bcc	Lc932
-	sta	wrcardram
+	sta	wrauxmem
 Lc932:	lda	Z48
 	sta	D05f8
 	beq	Lc947
@@ -538,7 +552,7 @@ Lc94e:	lda	Dbffb,X
 Lc958:	sta	wrmainram
 	plp
 	bpl	Lc961
-	sta	wrcardram
+	sta	wrauxmem
 Lc961:	jmp	Lc866
 
 Sc964:	lda	Z49
@@ -562,7 +576,7 @@ Lc982:	jsr	Sc964
 	sta	rdmainram
 	asl
 	bcc	Lc994
-	sta	rdcardram
+	sta	rdauxram
 Lc994:	lda	Z48
 	sta	D05f8
 	beq	Lc9a9
@@ -584,7 +598,7 @@ Lc9b0:	lda	(Z45),Y
 Lc9ba:	sta	rdmainram
 	plp
 	bpl	Lc9c3
-	sta	rdcardram
+	sta	rdauxram
 Lc9c3:	jmp	Lc866
 
 Dc9c6:	fcb	$f8,$00,$00,$00
@@ -793,17 +807,46 @@ Lcb83:	dec	Dbff8,X
 Dcb95:	fcb	$0c,$30,$c0
 Dcb98:	fcb	$04,$10,$40
 
-Scb9b:
-	fcb	$a2,$04,$a0,$00,$a9
-	fcb	$00,$48,$38,$a5,$3e,$fd,$de,$cb
-	fcb	$48,$a5,$3f,$fd,$e3,$cb,$90,$0a
-	fcb	$85,$3f,$68,$85,$3e,$68,$69,$00
-	fcb	$d0,$e7,$68,$68,$d0,$08,$88,$10
-	fcb	$05,$8a,$f0,$02,$a9,$10,$c8,$49
-	fcb	$b0,$20,$ed,$fd,$ca,$10,$d0,$a9
-	fcb	$cb,$4c,$ed,$fd,$08,$08,$20,$38
-	fcb	$50,$68,$80,$98,$b0,$c8,$04,$28
-	fcb	$90,$a0,$40,$00,$00,$01,$0f,$9c
+Scb9b:	ldx	#$04
+	ldy	#$00
+Lcb9f:	lda	#$00
+Lcba1:	pha
+	sec
+	lda	Z3e
+	sbc	Dcbde,X
+	pha
+	lda	Z3f
+	sbc	Dcbe3,X
+	bcc	Lcbba
+	sta	Z3f
+	pla
+	sta	Z3e
+	pla
+	adc	#$00
+	bne	Lcba1
+Lcbba:	pla
+	pla
+	bne	Lcbc6
+	dey
+	bpl	Lcbc6
+	txa
+	beq	Lcbc6
+	lda	#$10
+Lcbc6:	iny
+	eor	#$b0
+	jsr	cout
+	dex
+	bpl	Lcb9f
+	lda	#$cb
+	jmp	cout
+
+; cbd4:
+	fcb	$08,$08,$20,$38,$50,$68,$80,$98
+	fcb	$b0,$c8
+
+Dcbde:	fcb	$04,$28,$90,$a0,$40
+
+Dcbe3:	fcb	$00,$00,$01,$0f,$9c
 
 prodos:
 	ldy	Z42
@@ -824,7 +867,7 @@ prodos:
 	dey
 	beq	Lcc1b
 	ldy	#$01
-	fcb	$2c	; BIT abs opcode to skip two bytes
+	skip2
 lcc0a:	ldy	#$27
 Lcc0c:	tya
 	sec
@@ -1139,7 +1182,7 @@ Lce39:	pha
 	rts
 
 Sce53:	lda	#$00
-	fcb	$2c	; BIT abs opcode to skip two bytes
+	skip2
 Lce56:	lda	#$ff
 Lce58:	sta	Dbffb,X
 	cmp	Dbff8,X
@@ -1319,15 +1362,10 @@ Z29	equ	$29
 
 D0400	equ	$0400
 	
-D0d29	equ	$0d29
-D0d2a	equ	$0d2a
-D0d2b	equ	$0d2b
-D0d2f	equ	$0d2f
-
 diag:	stx	D0d2b
 	jsr	home
-	ldy	#$00
-	jsr	S0c7d
+	ldy	#d_msg_idx_00
+	jsr	d_msgout
 	jsr	Scb00
 	sta	D0d2a
 	ldy	#$00
@@ -1339,8 +1377,8 @@ diag:	stx	D0d2b
 L0a1b:	sty	Z3e
 	sta	Z3f
 	jsr	Scb9b
-	ldy	#$21
-	jsr	S0c7d
+	ldy	#d_msg_idx_21
+	jsr	d_msgout
 	jsr	Sca8b
 	sta	Dbffb,X
 	lda	#$04
@@ -1351,12 +1389,12 @@ L0a1b:	sty	Z3e
 	sta	D0778-$c0,Y
 L0a3d:	lda	#$00
 	sta	Z24
-	ldy	#$27
-	jsr	S0c7d
+	ldy	#d_msg_idx_27
+	jsr	d_msgout
 	lda	D0d2f
 	jsr	prbyte
-	ldy	#$2c
-	jsr	S0c7d
+	ldy	#d_msg_idx_2c
+	jsr	d_msgout
 	lda	Z24
 	clc
 	adc	Z28
@@ -1381,8 +1419,8 @@ L0a62:	dey
 
 L0a80:	tya
 	pha
-	ldy	#$35
-	jsr	S0c7d
+	ldy	#d_msg_idx_35
+	jsr	d_msgout
 	lda	#$08
 	sec
 	sbc	D0d29
@@ -1395,8 +1433,8 @@ L0a80:	tya
 	pla
 	rts
 
-L0a9a:	ldy	#$42
-	jsr	S0c7d
+L0a9a:	ldy	#d_msg_idx_42
+	jsr	d_msgout
 	ldx	D0778
 	lda	Dbff8,X
 	dec	Dbff8,X
@@ -1428,110 +1466,320 @@ L0ac5:	jsr	prbyte
 S0ae4:	inc	D0400
 	rts
 
-S0ae8:	lda	D0af5,Y
+S0ae8:	lda	D0af4+1,Y
 	pha
 	lda	D0af4,Y
 	pha
 	ldx	D0d2b
 	rts
 
-D0af4:	fcb	$e3
-D0af5:	fcb	$0b,$80,$0b,$1d,$0b,$fb,$0a,$a0
-	fcb	$00,$98,$20,$0a,$0d,$5d,$fa,$bf
-	fcb	$29,$0f,$d0,$13,$98,$dd,$f9,$bf
-	fcb	$d0,$0d,$dd,$f8,$bf,$d0,$08,$20
-	fcb	$e4,$0a,$c8,$d0,$e4,$18,$60,$38
-	fcb	$60,$a9,$00,$a0,$f0,$20,$0a,$0d
-	fcb	$ad,$28,$0d,$20,$6b,$0b,$8d,$28
-	fcb	$0d,$ad,$27,$0d,$20,$6b,$0b,$8d
-	fcb	$27,$0d,$20,$13,$0d,$ee,$28,$0d
-	fcb	$d0,$0c,$ee,$27,$0d,$d0,$07,$ee
-	fcb	$26,$0d,$d0,$02,$18,$60,$20,$e4
-	fcb	$0a,$bd,$fb,$bf,$bd,$fa,$bf,$4d
-	fcb	$26,$0d,$d0,$10,$bd,$f9,$bf,$cd
-	fcb	$27,$0d,$d0,$08,$bd,$f8,$bf,$cd
-	fcb	$28,$0d,$f0,$bc,$38,$60,$c9,$10
-	fcb	$90,$06,$c9,$70,$b0,$03,$a9,$70
-	fcb	$60,$c9,$90,$90,$fb,$c9,$f0,$b0
-	fcb	$f7,$a9,$f0,$60,$ad,$2a,$0d,$f0
-	fcb	$0e,$a9,$00,$8d,$30,$0d,$20,$96
-	fcb	$0b,$20,$96,$0b,$20,$96,$0b,$18
-	fcb	$60,$20,$8e,$ca,$a8,$98,$9d,$fb
-	fcb	$bf,$20,$be,$0b,$d0,$f7,$20,$e4
-	fcb	$0a,$98,$20,$0a,$0d,$98,$dd,$fb
-	fcb	$bf,$d0,$0a,$20,$be,$0b,$d0,$f5
-	fcb	$38,$6e,$30,$0d,$60,$68,$68,$38
-	fcb	$60,$2c,$30,$0d,$10,$18,$ee,$26
-	fcb	$0d,$fe,$fa,$bf,$ad,$26,$0d,$4a
-	fcb	$cd,$2a,$0d,$90,$09,$a0,$00,$60
-	fcb	$ee,$27,$0d,$fe,$f9,$bf,$ee,$28
-	fcb	$0d,$c8,$60,$00,$55,$aa,$ff,$ad
-	fcb	$2a,$0d,$f0,$13,$a0,$03,$b9,$e0
-	fcb	$0b,$8d,$2c,$0d,$20,$fe,$0b,$20
-	fcb	$2e,$0c,$b0,$04,$88,$10,$ef,$18
-	fcb	$60,$20,$6d,$0c,$20,$0a,$0c,$ce
-	fcb	$2d,$0d,$d0,$f8,$60,$98,$48,$ad
-	fcb	$2c,$0d,$a0,$00,$8c,$2e,$0d,$9d
-	fcb	$fb,$bf,$9d,$fb,$bf,$9d,$fb,$bf
-	fcb	$9d,$fb,$bf,$c8,$d0,$f1,$20,$e4
-	fcb	$0a,$ee,$2e,$0d,$d0,$e9,$68,$a8
-	fcb	$60,$20,$6d,$0c,$20,$3c,$0c,$b0
-	fcb	$05,$ce,$2d,$0d,$d0,$f6,$60,$98
-	fcb	$48,$ad,$2c,$0d,$a0,$00,$8c,$2e
-	fcb	$0d,$dd,$fb,$bf,$d0,$1e,$dd,$fb
-	fcb	$bf,$d0,$19,$dd,$fb,$bf,$d0,$14
-	fcb	$dd,$fb,$bf,$d0,$0f,$c8,$d0,$e9
-	fcb	$20,$e4,$0a,$ee,$2e,$0d,$d0,$e1
-	fcb	$68,$a8,$18,$60,$a8,$68,$38,$60
-	fcb	$ad,$2a,$0d,$4a,$8d,$2d,$0d,$4c
-	fcb	$8e,$ca
+D0af4:	fdb	L0be4-1
+	fdb	L0b81-1
+	fdb	L0b1e-1
+	fdb	L0afc-1
+
+
+l0afc:	ldy	#$00
+L0afe:	tya
+	jsr	S0d0a
+	eor	Dbffa,X
+	and	#$0f
+	bne	L0b1c
+	tya
+	cmp	Dbff9,X
+	bne	L0b1c
+	cmp	Dbff8,X
+	bne	L0b1c
+	jsr	S0ae4
+	iny
+	bne	L0afe
+	clc
+	rts
+
+L0b1c:	sec
+	rts
+
+l0b1e:	lda	#$00
+	ldy	#$f0
+	jsr	S0d0a
+L0b25:	lda	D0d28
+	jsr	S0b6b
+	sta	D0d28
+	lda	D0d27
+	jsr	S0b6b
+	sta	D0d27
+	jsr	S0d13
+	inc	D0d28
+	bne	L0b4b
+	inc	D0d27
+	bne	L0b4b
+	inc	D0d26
+	bne	L0b4b
+	clc
+	rts
+
+L0b4b:	jsr	S0ae4
+	lda	Dbffb,X
+	lda	Dbffa,X
+	eor	D0d26
+	bne	L0b69
+	lda	Dbff9,X
+	cmp	D0d27
+	bne	L0b69
+	lda	Dbff8,X
+	cmp	D0d28
+	beq	L0b25
+L0b69:	sec
+	rts
+
+S0b6b:	cmp	#$10
+	bcc	L0b75
+	cmp	#$70
+	bcs	L0b76
+	lda	#$70
+L0b75:	rts
+
+L0b76:	cmp	#$90
+	bcc	L0b75
+	cmp	#$f0
+	bcs	L0b75
+	lda	#$f0
+	rts
+
+L0b81:	lda	D0d2a
+	beq	L0b94
+	lda	#$00
+	sta	D0d30
+	jsr	S0b96
+	jsr	S0b96
+	jsr	S0b96
+L0b94:	clc
+	rts
+
+S0b96:	jsr	Sca8e
+	tay
+L0b9a:	tya
+	sta	Dbffb,X
+	jsr	S0bbe
+	bne	L0b9a
+	jsr	S0ae4
+	tya
+	jsr	S0d0a
+L0baa:	tya
+	cmp	Dbffb,X
+	bne	L0bba
+	jsr	S0bbe
+	bne	L0baa
+	sec
+	ror	D0d30
+	rts
+
+L0bba:	pla
+	pla
+	sec
+	rts
+
+S0bbe:	bit	D0d30
+	bpl	L0bdb
+	inc	D0d26
+	inc	Dbffa,X
+	lda	D0d26
+	lsr
+	cmp	D0d2a
+	bcc	L0bdb
+	ldy	#$00
+	rts
+
+	fcb	$ee,$27,$0d,$fe,$f9,$bf
+
+L0bdb:	inc	D0d28
+	iny
+	rts
+
+D0be0:	fcb	$00,$55,$aa,$ff
+
+L0be4:	lda	D0d2a
+	beq	L0bfc
+	ldy	#$03
+L0beb:	lda	D0be0,Y
+	sta	D0d2c
+	jsr	S0bfe
+	jsr	S0c2e
+	bcs	L0bfd
+	dey
+	bpl	L0beb
+L0bfc:	clc
+L0bfd:	rts
+
+S0bfe:	jsr	S0c6d
+L0c01:	jsr	S0c0a
+	dec	D0d2d
+	bne	L0c01
+	rts
+
+S0c0a:	tya
+	pha
+	lda	D0d2c
+	ldy	#$00
+	sty	D0d2e
+L0c14:	sta	Dbffb,X
+	sta	Dbffb,X
+	sta	Dbffb,X
+	sta	Dbffb,X
+	iny
+	bne	L0c14
+	jsr	S0ae4
+	inc	D0d2e
+	bne	L0c14
+	pla
+	tay
+	rts
+
+S0c2e:	jsr	S0c6d
+L0c31:	jsr	S0c3c
+	bcs	L0c3b
+	dec	D0d2d
+	bne	L0c31
+L0c3b:	rts
+
+S0c3c:	tya
+	pha
+	lda	D0d2c
+	ldy	#$00
+	sty	D0d2e
+L0c46:	cmp	Dbffb,X
+	bne	L0c69
+	cmp	Dbffb,X
+	bne	L0c69
+	cmp	Dbffb,X
+	bne	L0c69
+	cmp	Dbffb,X
+	bne	L0c69
+	iny
+	bne	L0c46
+	jsr	S0ae4
+	inc	D0d2e
+	bne	L0c46
+	pla
+	tay
+	clc
+	rts
+
+L0c69:	tay
+	pla
+	sec
+	rts
+
+S0c6d:	lda	D0d2a
+	lsr
+	sta	D0d2d
+	jmp	Sca8e
+
+
+; d_msgout decompresses and outputs a message
+; Y indexes d_msgtab, carry alternates 0 = high nibble, 1 = low nibble
 
 L0c77:	php
 	jsr	cout
 	plp
-	fcb	$24	; BIT zp opcode to skip one byte
-S0c7d:	clc
-	jsr	S0c8f
-	lda	D0ca1,X
-	bne	L0c77
-	jsr	S0c8f
-	lda	D0cb0,X
-	bne	L0c77
-	rts
+	skip1
+d_msgout:
+	clc		; start with high nibble
 
-S0c8f:	lda	D0cc0,Y
-	bcs	L0c9b
-	lsr
+	jsr	d_getnib	; get nibble
+	lda	D0ca1,X		; index first table
+	bne	L0c77		; if table countent non-zero, it's a char
+
+	jsr	d_getnib	; get nibble
+	lda	D0cb0,X		; index second table
+	bne	L0c77		; if table content non-zero, it's a char
+
+	rts		; if both table entries were zero, end of message
+
+
+; get one nibble
+d_getnib:
+	lda	d_msgtab,Y	; get byte from message table
+	bcs	L0c9b	; carry clear?
+	lsr		; yes, get high nibble
 	lsr
 	lsr
 	lsr
 	tax
-	sec
+	sec		; set carry so next call will get low nibble
 	rts
 
-L0c9b:	iny
+; carry was set, 
+L0c9b:	iny		; advance pointer
 	and	#$0f
 	tax
-	clc
+	clc		; clear carry so next call will get high nibble
 	rts
 
-D0ca1:	fcb	$00,$8d,$d2,$c1,$cd,$ae,$d4,$c9	; "..RAM.TI"
-	fcb	$d3,$a0,$c7,$cf,$cc,$c4,$c5   	; "S GOLDE"
-D0cb0:	fcb	$ce,$00,$c2,$c3,$c6,$c8,$d0,$d9	; "N.BCFHPY"
-	fcb	$da,$cd,$d1,$d5,$d6,$b1,$b4,$ba	; "ZMQUV14:"
-D0cc0:	fcb	$30,$60,$6c,$7e,$d9,$ef,$a7,$fe
+; nibble to character decode table 1
+; note that this table includes the first byte of decode table 2
+; table includes all but three of the letters ETAOINSHRDLC, the 13
+; most common letters of the English language, in an arbitrary
+; permutation that might be intended to confuse reverse-engineers.
+D0ca1:	fcb	$00	; escabe to second table
+	fcb	$8d	; carriage return
+	fcsm	"RAM.TIS GOLDE"
+
+; mibble to character decode table 2
+D0cb0:	fcsm	"N"
+	fcb	$00	; end of message
+	fcsm	"BCFHPYZMQUV14:"
+
+; compressed message table
+d_msgtab:
+d_msg_idx_00	equ	*-d_msgtab
+	fcb	$30,$60,$6c,$7e,$d9,$ef,$a7,$fe
 	fcb	$e2,$7f,$a9,$23,$40,$43,$03,$6b
 	fcb	$29,$6e,$86,$90,$c0,$d5,$0e,$11
 	fcb	$4e,$4b,$20,$79,$87,$08,$e0,$f9
-	fcb	$01,$90,$20,$76,$e8,$11,$01,$06
-	fcb	$38,$80,$f9,$01,$99,$99,$6e,$86
-	fcb	$7f,$a9,$55,$50,$19,$11,$03,$32
-	fcb	$d9,$04,$37,$c0,$b2,$e5,$97,$d0
-	fcb	$f9,$01,$99,$93,$dd,$2e,$88,$0f
-	fcb	$90,$19,$8d,$28,$0d,$8d,$27,$0d
-	fcb	$8c,$26,$0d,$ad,$28,$0d,$9d,$f8
-	fcb	$bf,$ad,$27,$0d,$9d,$f9,$bf,$ad
-	fcb	$26,$0d,$9d,$fa,$bf,$60
+	fcb	$01
+
+d_msg_idx_21	equ	*-d_msgtab
+	fcb	$90,$20,$76,$e8,$11,$01
+
+d_msg_idx_27	equ	*-d_msgtab
+	fcb	$06,$38,$80,$f9,$01
+
+d_msg_idx_2c	equ	*-d_msgtab
+	fcb	$99,$99,$6e,$86,$7f,$a9,$55,$50
+	fcb	$19
+
+d_msg_idx_35	equ	*-d_msgtab
+	fcb	$11,$03,$32,$d9,$04,$37,$c0,$b2
+	fcb	$e5,$97,$d0,$f9,$01
+
+d_msg_idx_42	equ	*-d_msgtab
+	fcb	$99,$93,$dd,$2e,$88,$0f,$90,$19
+	
+
+S0d0a:	sta	D0d28
+	sta	D0d27
+	sty	D0d26
+
+S0d13:	lda	D0d28
+	sta	Dbff8,X
+	lda	D0d27
+	sta	Dbff9,X
+	lda	D0d26
+	sta	Dbffa,X
+	rts
+
+D0d26:	equ	*
+D0d27:	equ	*+1
+D0d28:	equ	*+2
+D0d29:	equ	*+3
+D0d2a:	equ	*+4
+D0d2b:	equ	*+5
+D0d2c:	equ	*+6
+D0d2d:	equ	*+7
+D0d2e:	equ	*+8
+D0d2f:	equ	*+9
+D0d30:	equ	*+10
 
 	dephase
 	endsection diag
@@ -1556,15 +1804,25 @@ D0778	equ	$0778
 nnD07f8	equ	$07f8
 
 D0800	equ	$0800
+D0801	equ	$0801
 D0802	equ	$0802
 D0803	equ	$0803
 D0804	equ	$0804
 D0805	equ	$0805
 D0808	equ	$0808
+D0818	equ	$0818
+D0819	equ	$0819
+D081a	equ	$081a
+D081b	equ	$081b
+
 D0900	equ	$0900
 D0901	equ	$0901
 D0902	equ	$0902
 D0903	equ	$0903
+D0904	equ	$0904
+D0905	equ	$0905
+D0906	equ	$0906
+D0907	equ	$0907
 D0908	equ	$0908
 
 Dbff8	equ	$bff8
@@ -1602,8 +1860,8 @@ L0a1b:	ldy	D07f8
 	cmp	#$5a
 	bne	L0a3f
 	jsr	home
-	ldy	#$88
-	jsr	S0c8e
+	ldy	#p_msg_idx_88
+	jsr	p_msgout
 	lda	#'?'+$80
 	jsr	cout
 	jsr	rdkey_uc
@@ -1635,12 +1893,12 @@ L0a6b:	jsr	Sca8e
 	lda	D0802
 	sta	D0901
 	jsr	home
-	lsr	D0900
+L0a7a:	lsr	D0900
 L0a7d:	lda	#$00
 	sta	Z24
 	sta	Z25
-	ldy	#$00
-	jsr	S0c8e
+	ldy	#p_msg_idx_00
+	jsr	p_msgout
 	lda	D07f8
 	eor	#$70
 	jsr	cout
@@ -1651,13 +1909,13 @@ L0a98:	jsr	S0c03
 	iny
 	cpy	#$09
 	bcc	L0a98
-	ldy	#$14
-	jsr	S0c8e
+	ldy	#p_msg_idx_14
+	jsr	p_msgout
 	ldy	#$59
 	bit	D0900
 	bpl	L0aae
-	ldy	#$27
-L0aae:	jsr	S0c8e
+	ldy	#p_msg_idx_27
+L0aae:	jsr	p_msgout
 	jsr	clreop
 
 	jsr	rdkey_uc
@@ -1685,51 +1943,154 @@ L0adb:	iny
 	beq	L0af1
 	cmp	D0902
 	bne	L0adb
-	lda	D0af9,Y
+	lda	D0af7+2,Y
 	pha
-	lda	D0af8,Y
+	lda	D0af7+1,Y
 	pha
 	rts
 
 L0af1:	jsr	bell12
 	jmp	L0a7d
 
-D0af7:	fcb	$ce                     	; "N"
-D0af8:	fcb	$50                     	; "P"
-D0af9:	fcb	$0b,$c3,$f4,$0b,$d3,$70,$0b,$8d	; ".Ct.Sp.."
-	fcb	$15,$0b,$88,$38,$0b,$8b,$38,$0b	; "...8..8."
-	fcb	$8a,$48,$0b,$95,$48,$0b,$9b,$2a	; ".H..H..*"
-	fcb	$0b,$d2,$23,$0b,$00,$2c,$00,$09	; ".R#..,.."
-	fcb	$30,$03,$4c,$f6,$0d,$20,$e8,$0d	; "0.Lv. h."
-	fcb	$4c,$7a,$0a,$38,$6e,$00,$09,$4c	; "Lz.8n..L"
-	fcb	$7d,$0a,$2c,$00,$09,$10,$03,$4c	; "}.,....L"
-	fcb	$00,$0a,$20,$d7,$0d,$4c,$36,$0e	; ".. W.L6."
-	fcb	$ad,$01,$09,$38,$e9,$18,$c9,$e0	; "-..8i.I`"
-	fcb	$b0,$03,$8d,$01,$09,$4c,$7d,$0a	; "0....L}."
-	fcb	$ad,$01,$09,$18,$69,$18,$90,$ee	; "-...i..n"
-	fcb	$a0,$76,$20,$8e,$0c,$a2,$10,$20	; " v ..". "
-	fcb	$4f,$0e,$b0,$11,$a2,$00,$ac,$01	; "O.0.".,."
-	fcb	$09,$bd,$08,$09,$99,$08,$08,$c8	; ".=.....H"
-	fcb	$e8,$e0,$10,$90,$f4,$4c,$7d,$0a	; "h`..tL}."
-	fcb	$20,$43,$0e,$f0,$74,$98,$18,$69	; " C.pt..i"
-	fcb	$18,$a8,$c0,$e0,$b0,$6b,$20,$46	; ".(@`0k F"
-	fcb	$0e,$f0,$66,$a0,$7f,$20,$8e,$0c	; ".pf . .."
-	fcb	$a2,$06,$20,$4f,$0e,$20,$a1,$0e	; "". O. !."
-	fcb	$0e,$04,$09,$2e,$05,$09,$0e,$04	; "........"
-	fcb	$09,$2e,$05,$09,$18,$ac,$01,$09	; ".....,.."
-	fcb	$b9,$03,$08,$79,$1b,$08,$8d,$06	; "9..y...."
-	fcb	$09,$b9,$02,$08,$79,$1a,$08,$8d	; ".9..y..."
-	fcb	$07,$09,$38,$ad,$06,$09,$ed,$04	; "..8-..m."
-	fcb	$09,$48,$ad,$07,$09,$ed,$05,$09	; ".H-..m.."
-	fcb	$90,$23,$99,$1a,$08,$68,$99,$1b	; ".#...h.."
-	fcb	$08,$18,$ad,$04,$09,$99,$03,$08	; "..-....."
-	fcb	$79,$01,$08,$99,$19,$08,$ad,$05	; "y.....-."
-	fcb	$09,$99,$02,$08,$79,$00,$08,$99	; "....y..."
-	fcb	$18,$08,$4c,$7d,$0a,$68,$a0,$d5	; "..L}.h U"
-	fcb	$2c,$a0,$c9,$20,$8e,$0c,$20,$0c	; ", I .. ."
-	fcb	$fd,$4c,$7d,$0a,$20,$43,$0e,$d0	; "}L}. C.P"
-	fcb	$06,$ae,$01,$09,$fe,$05,$08,$4c	; "....~..L"
-	fcb	$7d,$0a                  	; "}."
+D0af7:	fcb	$ce
+	fdb	L0b51-1
+	
+	fcb	'C'+$80
+	fdb	L0bf5-1
+	
+	fcb	'S'+$80
+	fdb	L0b71-1
+
+	fcb	$8d
+	fdb	L0b16-1
+	
+	fcb	$88
+	fdb	L0b39-1
+	
+	fcb	$8b
+	fdb	L0b39-1
+	
+	fcb	$8a
+	fdb	L0b49-1
+	
+	fcb	$95
+	fdb	L0b49-1
+	
+	fcb	$9b
+	fdb	L0b2b-1
+	
+	fcb	'R'+$80
+	fdb	L0b24-1
+	
+	fcb	$00
+
+L0b16:	bit	D0900
+	bmi	L0b1e
+	jmp	L0df6
+
+L0b1e:	jsr	S0de8
+	jmp	L0a7a
+
+L0b24:	sec
+	ror	D0900
+	jmp	L0a7d
+
+L0b2b:	bit	D0900
+	bpl	L0b33
+	jmp	L0a00
+
+L0b33:	jsr	S0dd7
+	jmp	L0e36
+
+L0b39:	lda	D0901
+	sec
+	sbc	#$18
+L0b3f:	cmp	#$e0
+	bcs	L0b46
+	sta	D0901
+L0b46:	jmp	L0a7d
+
+L0b49:	lda	D0901
+	clc
+	adc	#$18
+	bcc	L0b3f
+
+L0b51:	ldy	#p_msg_idx_76
+	jsr	p_msgout
+	ldx	#$10
+	jsr	S0e4f
+	bcs	L0b6e
+	ldx	#$00
+	ldy	D0901
+L0b62:	lda	D0908,X
+	sta	D0808,Y
+	iny
+	inx
+	cpx	#$10
+	bcc	L0b62
+L0b6e:	jmp	L0a7d
+
+L0b71:	jsr	S0e43
+	beq	L0bea
+	tya
+	clc
+	adc	#$18
+	tay
+	cpy	#$e0
+	bcs	L0bea
+	jsr	S0e46
+	beq	L0bea
+	ldy	#p_msg_idx_7f
+	jsr	p_msgout
+	ldx	#$06
+	jsr	S0e4f
+	jsr	S0ea1
+	asl	D0904
+	rol	D0905
+	asl	D0904
+	rol	D0905
+	clc
+	ldy	D0901
+	lda	D0803,Y
+	adc	D081b,Y
+	sta	D0906
+	lda	D0802,Y
+	adc	D081a,Y
+	sta	D0907
+	sec
+	lda	D0906
+	sbc	D0904
+	pha
+	lda	D0907
+	sbc	D0905
+	bcc	L0be6
+	sta	D081a,Y
+	pla
+	sta	D081b,Y
+	clc
+	lda	D0904
+	sta	D0803,Y
+	adc	D0801,Y
+	sta	D0819,Y
+	lda	D0905
+	sta	D0802,Y
+	adc	D0800,Y
+	sta	D0818,Y
+	jmp	L0a7d
+
+L0be6:	pla
+	ldy	#$d5
+	skip2
+L0bea:	ldy	#$c9
+	jsr	p_msgout
+	jsr	rdkey
+	jmp	L0a7d
+
+L0bf5:	jsr	S0e43
+	bne	L0c00
+	ldx	D0901
+	inc	D0805,X
+L0c00:	jmp	L0a7d
 
 S0c03:	tya
 	pha
@@ -1740,12 +2101,12 @@ S0c03:	tya
 	bne	L0c12
 	ldx	#$3f
 L0c12:	stx	Z32
-	jsr	S0c79
+	jsr	print_two_spaces
 	tya
 	clc
 	adc	#$b1
 	jsr	cout
-	jsr	S0c79
+	jsr	print_two_spaces
 	pla
 	pha
 	tay
@@ -1757,7 +2118,7 @@ L0c2d:	jsr	cout
 	iny
 	dex
 	bne	L0c26
-	jsr	S0c79
+	jsr	print_two_spaces
 	pla
 	pha
 	tay
@@ -1768,7 +2129,7 @@ L0c2d:	jsr	cout
 	jsr	Scb9b
 	lda	#$ff
 	sta	Z32
-	jsr	S0c79
+	jsr	print_two_spaces
 	pla
 	tay
 	lda	D0805,Y
@@ -1783,17 +2144,25 @@ L0c5e:	cmp	D0c6f,Y
 	bne	L0c5e
 L0c66:	lda	D0c74,Y
 	tay
-	jsr	S0c8e
+	jsr	p_msgout
 	pla
 	tay
 D0c6f:	rts
 
-	fcb	$4c,$00,$33,$cd            	; "L.3M"
-D0c74:	fcb	$df,$e9,$f5,$e4,$ef         	; "_iudo"
+	fcb	$4c,$00,$33,$cd
 
-S0c79:	lda	#' '+$80
+D0c74:	fcb	p_msg_idx_df
+	fcb	p_msg_idx_e9
+	fcb	p_msg_idx_f5
+	fcb	p_msg_idx_e4
+	fcb	p_msg_idx_ef
+
+
+print_two_spaces:
+	lda	#' '+$80
 	jsr	cout
 	jmp	cout
+
 
 S0c81:	sta	D0902
 	asl
@@ -1804,74 +2173,132 @@ S0c81:	sta	D0902
 	adc	#$08
 	rts
 
-S0c8e:	clc
-L0c8f:	jsr	S0cac
-	lda	D0cbe,X
-	bne	L0ca0
-	jsr	S0cac
-	lda	D0ccd,X
-	bne	L0ca0
-	rts
+; Decompress and output a message
+; Y indexes p_msgtab, carry alternates 0 = high nibble, 1 = low nibble
+p_msgout:
+	clc
+L0c8f:	jsr	p_getnib	; get nibble
+	lda	D0cbe,X		; index first table
+	bne	L0ca0		; if table content non-zero, it's a char
 
+	jsr	p_getnib	; it was zero, get next nibble
+	lda	D0ccd,X		; index second table
+	bne	L0ca0		; if table content non-zero, it's a char
+
+	rts		; if both table entries were zero, end of message
+
+
+; output a decoded character, except if MSB is zero, output two spaces
 L0ca0:	php
 	bmi	L0ca6
-	jsr	S0c79
+	jsr	print_two_spaces
+
 L0ca6:	jsr	cout
 	plp
 	bne	L0c8f
 
-S0cac:	lda	D0cdd,Y
-	bcs	L0cb8
-	lsr
+
+; get one nibble
+p_getnib:
+	lda	p_msgtab,Y	; get byte from message table
+	bcs	L0cb8	; carry clear?
+	lsr		; yes, get high nibble
 	lsr
 	lsr
 	lsr
 	tax
-	sec
+	sec		; set carry so next call will get low nibble
 	rts
 
-L0cb8:	iny
+; carry was set, getting low nibble
+L0cb8:	iny		; advance pointer
 	and	#$0f
 	tax
-	clc
+	clc		; clear carry so next call will get high nibble
 	rts
 
-D0cbe:	fcb	$00,$8d,$01,$c7,$cc,$c9,$d4,$c3	; "...GLITC"
-	fcb	$c8,$a0,$d2,$c5,$c1,$d3,$cf   	; "H REASO"
-D0ccd:	fcb	$ce,$00,$c6,$d0,$d5,$c4,$cd,$ad	; "N.FPUDM-"
-	fcb	$b1,$b9,$bd,$c2,$d1,$d7,$da,$d9	; "19=BQWZY"
-D0cdd:	fcb	$1a,$c0,$60,$2c,$76,$ea,$90,$3c	; ".@`,vj.<"
-	fcb	$a6,$56,$5e,$fd,$22,$29,$9d,$4e	; "&V^}").N"
-	fcb	$69,$0a,$90,$19,$10,$4d,$b9,$ca	; "i....M9J"
-	fcb	$ae,$0d,$d9,$ea,$90,$80,$70,$99	; "..Yj..p."
-	fcb	$6e,$9d,$b4,$b7,$61,$10,$19,$f0	; "n.47a..p"
-	fcb	$af,$c0,$6b,$97,$8c,$f3,$b2,$29	; "/@k..s2)"
-	fcb	$ab,$60,$a5,$fd,$6c,$44,$97,$8c	; "+`%}lD.."
-	fcb	$f3,$bd,$1d,$0a,$d5,$0e,$b9,$78	; "s=..U.9x"
-	fcb	$cf,$3b,$22,$9b,$d7,$0a,$02,$ea	; "O;".W..j"
-	fcb	$3b,$69,$78,$cf,$3b,$d1,$70,$a7	; ";ixO;Qp'"
-	fcb	$4b,$ca,$90,$3c,$a6,$56,$5e,$f0	; "KJ.<&V^p"
-	fcb	$19,$ab,$60,$a0,$be,$e6,$96,$8b	; ".+` >f.."
-	fcb	$90,$3c,$a6,$56,$5e,$f2,$9a,$0a	; ".<&V^r.."
-	fcb	$ab,$7e,$f0,$25,$30,$4a,$b1,$bd	; "+~p%0J1="
-	fcb	$70,$a0,$c0,$45,$60,$19,$11,$fb	; "p @E`..{"
-	fcb	$0d,$9f,$c0,$6b,$90,$a9,$01,$11	; "..@k.).."
-	fcb	$fb,$0d,$9d,$50,$eb,$90,$a9,$01	; "{..Pk.)."
-	fcb	$10,$dc,$af,$5f,$30,$79,$5f,$d6	; ".\/_0y_V"
-	fcb	$c4,$45,$f3,$90,$3c,$a6,$56,$5e	; "DEs.<&V^"
-	fcb	$fd,$90,$5b,$d6,$ae,$0f,$d1,$68	; "}.[V..Qh"
-	fcb	$b9,$05,$5a,$b7,$6e,$a0,$f0,$79	; "9.Z7n py"
-	fcb	$3e,$9c,$8b,$c0,$50,$19,$11,$7c	; ">..@P..|"
-	fcb	$ff,$e6,$90,$be,$e6,$96,$8c,$69	; ".f.>f..i"
-	fcb	$03,$ca,$65,$65,$ef,$10,$be,$e6	; ".Jeeo.>f"
-	fcb	$90,$2a,$e0,$69,$d4,$e6,$90,$a9	; ".*`iTf.)"
-	fcb	$01,$11,$7c,$ff,$e6,$97,$8c,$f3	; "..|.f..s"
-	fcb	$b9,$d5,$0e,$b0,$19,$11,$d5,$0e	; "9U.0..U."
-	fcb	$b9,$6e,$e9,$4c,$a3,$b0,$19,$74	; "9niL#0.t"
-	fcb	$bc,$a9,$10,$19,$05,$ed,$99,$91	; "<)...m.."
-	fcb	$01,$03,$ae,$05,$ed,$10,$19,$70	; "....m..p"
-	fcb	$30,$70,$69,$91,$01,$03,$cd,$7c	; "0pi...M|"
-	fcb	$41,$01                  	; "A."
+; nibble to character decode table 1
+; note that this table includes the first byte of decode table 2
+; table includes all but one of the letters ETAOINSHRDLC, the 13
+; most common letters of the English language, in an arbitrary
+; permutation that might be intended to confuse reverse-engineers.
+D0cbe:	fcb	$00	; escape to second table
+	fcb	$8d	; carriage return
+	fcb	$01	; two spaces
+	fcsm	"GLITCH REASO"
+
+; nibble to character decode table 2
+D0ccd:	fcsm	"N"
+	fcb	$00	; end of message
+	fcsm	"FPUDM-19=BQWZY"
+
+; compressed message table
+p_msgtab:
+p_msg_idx_00	equ	*-p_msgtab
+	fcb	$1a,$c0,$60,$2c,$76,$ea,$90,$3c
+	fcb	$a6,$56,$5e,$fd,$22,$29,$9d,$4e
+	fcb	$69,$0a,$90,$19
+
+p_msg_idx_14	equ	*-p_msgtab
+	fcb	$10,$4d,$b9,$ca,$ae,$0d,$d9,$ea
+	fcb	$90,$80,$70,$99,$6e,$9d,$b4,$b7
+	fcb	$61,$10,$19
+
+p_msg_idx_27	equ	*-p_msgtab
+	fcb	$f0,$af,$c0,$6b,$97,$8c,$f3,$b2
+	fcb	$29,$ab,$60,$a5,$fd,$6c,$44,$97
+	fcb	$8c,$f3,$bd,$1d,$0a,$d5,$0e,$b9
+	fcb	$78,$cf,$3b,$22,$9b,$d7,$0a,$02
+	fcb	$ea,$3b,$69,$78,$cf,$3b,$d1,$70
+	fcb	$a7,$4b,$ca,$90,$3c,$a6,$56,$5e
+	fcb	$f0,$19,$ab,$60,$a0,$be,$e6,$96
+	fcb	$8b,$90,$3c,$a6,$56,$5e,$f2,$9a
+	fcb	$0a,$ab,$7e,$f0,$25,$30,$4a,$b1
+	fcb	$bd,$70,$a0,$c0,$45,$60,$19
+
+p_msg_idx_76	equ	*-p_msgtab
+	fcb	$11,$fb,$0d,$9f,$c0,$6b,$90,$a9
+	fcb	$01
+
+p_msg_idx_7f	equ	*-p_msgtab
+	fcb	$11,$fb,$0d,$9d,$50,$eb,$90,$a9
+	fcb	$01
+
+p_msg_idx_88	equ	*-p_msgtab
+	fcb	$10,$dc,$af,$5f,$30,$79,$5f,$d6
+	fcb	$c4,$45,$f3,$90,$3c,$a6,$56,$5e
+	fcb	$fd,$90,$5b,$d6,$ae,$0f,$d1,$68
+	fcb	$b9,$05,$5a,$b7,$6e,$a0,$f0,$79
+	fcb	$3e,$9c,$8b,$c0,$50,$19
+
+p_msg_idx_ae	equ	*-p_msgtab
+	fcb	$11,$7c,$ff,$e6,$90,$be,$e6,$96
+	fcb	$8c,$69,$03,$ca,$65,$65,$ef,$10
+	fcb	$be,$e6,$90,$2a,$e0,$69,$d4,$e6
+	fcb	$90,$a9,$01
+
+p_msg_idx_c9	equ	*-p_msgtab
+	fcb	$11,$7c,$ff,$e6,$97,$8c,$f3,$b9
+	fcb	$d5,$0e,$b0,$19
+
+p_msg_idx_d5	equ	*-p_msgtab
+	fcb	$11,$d5,$0e,$b9,$6e,$e9,$4c,$a3
+	fcb	$b0,$19
+
+p_msg_idx_df	equ	*-p_msgtab
+	fcb	$74,$bc,$a9,$10,$19
+
+p_msg_idx_e4	equ	*-p_msgtab
+	fcb	$05,$ed,$99,$91,$01
+
+p_msg_idx_e9	equ	*-p_msgtab
+	fcb	$03,$ae,$05,$ed,$10,$19
+
+p_msg_idx_ef	equ	*-p_msgtab
+	fcb	$70,$30,$70,$69,$91,$01
+
+p_msg_idx_f5	equ	*-p_msgtab
+	fcb	$03,$cd,$7c,$41,$01
 
 S0dd7:	lda	D0901
 	sta	D0802
@@ -1895,8 +2322,8 @@ L0df6:	jsr	S0dd7
 	ora	D0803,Y
 	beq	L0e09
 L0e06:	jsr	S0e27
-L0e09:	ldy	#$ae
-	jsr	S0c8e
+L0e09:	ldy	#p_msg_idx_ae
+	jsr	p_msgout
 L0e0e:	ldx	#$01
 	jsr	S0e4f
 	bcs	L0e36
@@ -1925,7 +2352,7 @@ L0e3a:	sta	D0800,X
 	jmp	(resetvec)
 
 S0e43:	ldy	D0901
-	lda	D0804,Y
+S0e46:	lda	D0804,Y
 	eor	D0805,Y
 	cmp	#$5a
 	rts
@@ -1974,12 +2401,30 @@ rdkey_uc:
 	and	#$df	;   yes, convert to upper case
 L0ea0:	rts
 
-	fcb	$a9,$00,$a8,$aa,$8d,$04,$09,$8e	; ").(*...."
-	fcb	$05,$09,$a9,$0a,$8d,$02,$09,$a2	; "..)....""
-	fcb	$00,$b9,$08,$09,$49,$b0,$c9,$0a	; ".9..I0I."
-	fcb	$90,$01,$60,$6d,$04,$09,$48,$8a	; "..`m..H."
-	fcb	$6d,$05,$09,$aa,$68,$ce,$02,$09	; "m..*hN.."
-	fcb	$d0,$f1,$c8,$d0,$d7         	; "PqHPW"
+S0ea1:	lda	#$00
+	tay
+	tax
+L0ea5:	sta	D0904
+	stx	D0905
+	lda	#$0a
+	sta	D0902
+	ldx	#$00
+	lda	D0908,Y
+	eor	#$b0
+	cmp	#$0a
+	bcc	L0ebc
+	rts
+
+L0ebc:	adc	D0904
+	pha
+	txa
+	adc	D0905
+	tax
+	pla
+	dec	D0902
+	bne	L0ebc
+	iny
+	bne	L0ea5
 
 	dephase
 	endsection partmgr
