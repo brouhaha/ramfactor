@@ -1967,56 +1967,60 @@ L0af1:	jsr	bell12
 	jmp	L0a7d
 
 D0af7:	fcb	'N'+$80		; Name a partition
-	fdb	L0b51-1
+	fdb	p_cmd_name-1
 	
 	fcb	'C'+$80		; Clear a partition
-	fdb	L0bf5-1
+	fdb	p_cmd_clear-1
 	
 	fcb	'S'+$80		; change Size of a partition
-	fdb	L0b71-1
+	fdb	p_cmd_size-1
 
 	fcb	ch_cr+$80	; boot partition
-	fdb	L0b16-1
+	fdb	p_cmd_boot-1
 	
 	fcb	key_left+$80
-	fdb	L0b39-1
+	fdb	p_cmd_up-1
 	
 	fcb	key_up+$80
-	fdb	L0b39-1
+	fdb	p_cmd_up-1
 	
 	fcb	key_down+$80
-	fdb	L0b49-1
+	fdb	p_cmd_down-1
 	
 	fcb	key_right+$80
-	fdb	L0b49-1
+	fdb	p_cmd_down-1
 	
 	fcb	ch_esc+$80	; quit
-	fdb	L0b2b-1
+	fdb	p_cmd_exit-1
 	
 	fcb	'R'+$80		; Reconfigure
-	fdb	L0b24-1
+	fdb	p_cmd_reconfigure-1
 	
 	fcb	$00
 
-L0b16:	bit	D0900
+p_cmd_boot:
+	bit	D0900
 	bmi	L0b1e
 	jmp	L0df6
 
 L0b1e:	jsr	S0de8
 	jmp	L0a7a
 
-L0b24:	sec
+p_cmd_reconfigure:
+	sec
 	ror	D0900
 	jmp	L0a7d
 
-L0b2b:	bit	D0900
+p_cmd_exit:
+	bit	D0900
 	bpl	L0b33
 	jmp	L0a00
 
 L0b33:	jsr	S0dd7
 	jmp	L0e36
 
-L0b39:	lda	D0901
+p_cmd_up:
+	lda	D0901
 	sec
 	sbc	#$18
 L0b3f:	cmp	#$e0
@@ -2024,12 +2028,14 @@ L0b3f:	cmp	#$e0
 	sta	D0901
 L0b46:	jmp	L0a7d
 
-L0b49:	lda	D0901
+p_cmd_down:
+	lda	D0901
 	clc
 	adc	#$18
 	bcc	L0b3f
 
-L0b51:	ldy	#p_msg_idx_76
+p_cmd_name:
+	ldy	#p_msg_idx_76
 	jsr	p_msgout
 	ldx	#$10
 	jsr	S0e4f
@@ -2044,7 +2050,8 @@ L0b62:	lda	D0908,X
 	bcc	L0b62
 L0b6e:	jmp	L0a7d
 
-L0b71:	jsr	S0e43
+p_cmd_size:
+	jsr	S0e43
 	beq	L0bea
 	tya
 	clc
@@ -2100,7 +2107,8 @@ L0bea:	ldy	#$c9
 	jsr	rdkey
 	jmp	L0a7d
 
-L0bf5:	jsr	S0e43
+p_cmd_clear:
+	jsr	S0e43
 	bne	L0c00
 	ldx	D0901
 	inc	D0805,X
