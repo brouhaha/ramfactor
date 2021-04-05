@@ -38,6 +38,75 @@ skip2	macro
 	endm
 
 
+; macros to handle the text compression
+
+enc_nib	macro	nibval
+	if	nib_msb
+nib_save set nibval
+	else
+	 fcb	(nib_save<<4)|nibval
+	endif
+nib_msb	set	1-nib_msb
+	endm
+
+enc_ch	macro	ch
+idx	set	strstr(tbl1,ch)
+	if	idx >= 0
+	 enc_nib idx
+	else
+idx	 set	strstr(tbl2,ch)
+	 if	idx >= 0
+	  enc_nib 0
+	  enc_nib idx
+	 else
+	  error "unable to encode character"
+	 endif
+	endif
+	endm
+
+enc_end	macro
+idx	set	strstr(tbl1,"\xff")
+	if	idx >= 0
+	 enc_nib	idx
+	else
+	 error	"no zero entry in tbl1"
+	endif
+idx	set	strstr(tbl2,"\xff")
+	if	idx >= 0
+	 enc_nib	idx
+	else
+	 error	"no zero entry in tbl2"
+	endif
+	if	nib_msb == 0
+	 enc_nib	9  ; if there's a leftover nibble at the end, fill with 9
+	endif
+	endm
+
+;encode2	macro	arg
+;	if	"arg"<>""
+;	 irpc	char,arg
+;	  enc_ch "char"
+;	 endm
+;         shift
+;	 encode2 ALLARGS
+;	endif
+;	endm
+
+;encode	macro	arg
+;nib_msb	set	1
+;	encode2	allargs
+;	enc_end
+;	endm
+
+encode	macro	arg
+nib_msb	set	1
+	irpc	char,arg
+	 enc_ch "char"
+	endm
+	enc_end
+	endm
+
+
 ch_bs		equ	$08
 ch_lf		equ	$0a
 ch_vt		equ	$0b
@@ -1700,13 +1769,13 @@ L0c77:	php
 d_msgout:
 	clc		; start with high nibble
 
-	jsr	d_getnib	; get nibble
-	lda	D0ca1,X		; index first table
-	bne	L0c77		; if table countent non-zero, it's a char
+	jsr	d_getnib		; get nibble
+	lda	d_msg_dec_tab_1,X			; index first table
+	bne	L0c77			; if table content non-zero, it's a char
 
-	jsr	d_getnib	; get nibble
-	lda	D0cb0,X		; index second table
-	bne	L0c77		; if table content non-zero, it's a char
+	jsr	d_getnib		; get nibble
+	lda	d_msg_dec_tab_2,X	; index second table
+	bne	L0c77			; if table content non-zero, it's a char
 
 	rts		; if both table entries were zero, end of message
 
@@ -1735,41 +1804,45 @@ L0c9b:	iny		; advance pointer
 ; table includes all but three of the letters ETAOINSHRDLC, the 13
 ; most common letters of the English language, in an arbitrary
 ; permutation that might be intended to confuse reverse-engineers.
-D0ca1:	fcb	$00		; escabe to second table
+d_msg_dec_tab_1:
+	fcb	$00		; escabe to second table
 	fcb	ch_cr+$80	; carriage return
 	fcsm	"RAM.TIS GOLDE"
 
 ; mibble to character decode table 2
-D0cb0:	fcsm	"N"
+d_msg_dec_tab_2:
+	fcsm	"N"
 	fcb	$00	; end of message
 	fcsm	"BCFHPYZMQUV14:"
+
+; Strings used at assembly time to perform the encoding
+; These MUST match the decoding tables defined above
+; \xff is a placeholder for a zero entry in the table, because AS doesn't support
+; null bytes in strings
+; \x01 is a special value that expands to two spaces
+tbl1	set	"\xff\x0dRAM.TIS GOLDEN"
+tbl2	set	"N\xffBCFHPYZMQUV14:"
 
 ; compressed message table
 d_msgtab:
 d_msg_idx_00	equ	*-d_msgtab
-	fcb	$30,$60,$6c,$7e,$d9,$ef,$a7,$fe
-	fcb	$e2,$7f,$a9,$23,$40,$43,$03,$6b
-	fcb	$29,$6e,$86,$90,$c0,$d5,$0e,$11
-	fcb	$4e,$4b,$20,$79,$87,$08,$e0,$f9
-	fcb	$01
+	encode	"APPLIED ENGINEERING RAMFACTOR TEST V1.4\x0d\x0dMEMORY SIZE: "
 
 d_msg_idx_21	equ	*-d_msgtab
-	fcb	$90,$20,$76,$e8,$11,$01
+	encode	" BYTES\x0d\x0d"
 
 d_msg_idx_27	equ	*-d_msgtab
-	fcb	$06,$38,$80,$f9,$01
+	encode	"PASS: "
 
 d_msg_idx_2c	equ	*-d_msgtab
-	fcb	$99,$99,$6e,$86,$7f,$a9,$55,$50
-	fcb	$19
+	encode	"    TESTING ..."
 
 d_msg_idx_35	equ	*-d_msgtab
-	fcb	$11,$03,$32,$d9,$04,$37,$c0,$b2
-	fcb	$e5,$97,$d0,$f9,$01
+	encode	"\x0d\x0dCARD FAILURE. ID: "
 
 d_msg_idx_42	equ	*-d_msgtab
-	fcb	$99,$93,$dd,$2e,$88,$0f,$90,$19
-	
+	encode	"   ADDRESS: "
+;	fcb	$99,$93,$dd,$2e,$88,$0f,$90,$19
 
 S0d0a:	sta	D0d28
 	sta	D0d27
@@ -2254,73 +2327,64 @@ D0ccd:	fcsm	"N"
 	fcb	$00		; end of message
 	fcsm	"FPUDM-19=BQWZY"
 
+; Strings used at assembly time to perform the encoding
+; These MUST match the decoding tables defined above
+; \xff is a placeholder for a zero entry in the table, because AS doesn't support
+; null bytes in strings
+; \x01 is a special value that expands to two spaces
+tbl1	set	"\xff\x0d\x01GLITCH REASON"
+tbl2	set	"N\xffFPUDM-19=BQWZY"
+
 ; compressed message table
 p_msgtab:
 p_msg_idx_00	equ	*-p_msgtab
-	fcb	$1a,$c0,$60,$2c,$76,$ea,$90,$3c
-	fcb	$a6,$56,$5e,$fd,$22,$29,$9d,$4e
-	fcb	$69,$0a,$90,$19
+	encode	"\x0dRAMFACTOR PARTITIONS\x01\x01\x01  SLOT = "
 
 p_msg_idx_14	equ	*-p_msgtab
-	fcb	$10,$4d,$b9,$ca,$ae,$0d,$d9,$ea
-	fcb	$90,$80,$70,$99,$6e,$9d,$b4,$b7
-	fcb	$61,$10,$19
+	encode	"\x0dUSE ARROWS OR 1-9 TO SELECT\x0d\x0d"
 
 p_msg_idx_27	equ	*-p_msgtab
-	fcb	$f0,$af,$c0,$6b,$97,$8c,$f3,$b2
-	fcb	$29,$ab,$60,$a5,$fd,$6c,$44,$97
-	fcb	$8c,$f3,$bd,$1d,$0a,$d5,$0e,$b9
-	fcb	$78,$cf,$3b,$22,$9b,$d7,$0a,$02
-	fcb	$ea,$3b,$69,$78,$cf,$3b,$d1,$70
-	fcb	$a7,$4b,$ca,$90,$3c,$a6,$56,$5e
-	fcb	$f0,$19,$ab,$60,$a0,$be,$e6,$96
-	fcb	$8b,$90,$3c,$a6,$56,$5e,$f2,$9a
-	fcb	$0a,$ab,$7e,$f0,$25,$30,$4a,$b1
-	fcb	$bd,$70,$a0,$c0,$45,$60,$19
+	encode	"N=NAME CHANGE\x01\x01 RET=INSTALL CHANGES\x0dS=SIZE CHANGE\x01\x01 ESC=FORGET CHANGES\x0dC=CLEAR PARTITION"
+
+p_msg_idx_59	equ	*-p_msgtab
+	encode	"RET=BOOT THE PARTITION\x01 R=RECONFIGURE\x0dESC=QUIT"
 
 p_msg_idx_76	equ	*-p_msgtab
-	fcb	$11,$fb,$0d,$9f,$c0,$6b,$90,$a9
-	fcb	$01
+	encode	"\x0d\x0dNEW NAME = "
 
 p_msg_idx_7f	equ	*-p_msgtab
-	fcb	$11,$fb,$0d,$9d,$50,$eb,$90,$a9
-	fcb	$01
+	encode	"\x0d\x0dNEW SIZE = "
+;	fcb	$11,$fb,$0d,$9d,$50,$eb,$90,$a9
+;	fcb	$01
+; "NEW SIZE = "
 
 p_msg_idx_88	equ	*-p_msgtab
-	fcb	$10,$dc,$af,$5f,$30,$79,$5f,$d6
-	fcb	$c4,$45,$f3,$90,$3c,$a6,$56,$5e
-	fcb	$fd,$90,$5b,$d6,$ae,$0f,$d1,$68
-	fcb	$b9,$05,$5a,$b7,$6e,$a0,$f0,$79
-	fcb	$3e,$9c,$8b,$c0,$50,$19
+	encode	"\x0dWARNING- INSTALLING PARTITIONS DESTROYS\x0dTHE DIRECTORY- GO AHEAD"
 
 p_msg_idx_ae	equ	*-p_msgtab
-	fcb	$11,$7c,$ff,$e6,$90,$be,$e6,$96
-	fcb	$8c,$69,$03,$ca,$65,$65,$ef,$10
-	fcb	$be,$e6,$90,$2a,$e0,$69,$d4,$e6
-	fcb	$90,$a9,$01
+	encode	"\x0d\x0dCANNOT BOOT THAT PARTITION\x0dBOOT FROM SLOT = "
 
 p_msg_idx_c9	equ	*-p_msgtab
-	fcb	$11,$7c,$ff,$e6,$97,$8c,$f3,$b9
-	fcb	$d5,$0e,$b0,$19
+	encode	"\x0d\x0dCANNOT CHANGE SIZE"
 
 p_msg_idx_d5	equ	*-p_msgtab
-	fcb	$11,$d5,$0e,$b9,$6e,$e9,$4c,$a3
-	fcb	$b0,$19
+	encode	"\x0d\x0dSIZE TOO LARGE"
 
 p_msg_idx_df	equ	*-p_msgtab
-	fcb	$74,$bc,$a9,$10,$19
+	encode	"CLEAR \x0d"
 
 p_msg_idx_e4	equ	*-p_msgtab
-	fcb	$05,$ed,$99,$91,$01
+	encode	"DOS   \x0d"
 
 p_msg_idx_e9	equ	*-p_msgtab
-	fcb	$03,$ae,$05,$ed,$10,$19
+	encode	"PRODOS\x0d"
 
 p_msg_idx_ef	equ	*-p_msgtab
-	fcb	$70,$30,$70,$69,$91,$01
+	encode	"CP-M  \x0d"
 
 p_msg_idx_f5	equ	*-p_msgtab
-	fcb	$03,$cd,$7c,$41,$01
+	encode	"PASCAL\x0d"
+
 
 S0dd7:	lda	D0901
 	sta	D0802
