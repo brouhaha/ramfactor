@@ -217,17 +217,17 @@ setvid	equ	$fe93
 resetvec	equ	$fffc
 
 
-pc_err_bad_cmd		equ	$01
-pc_err_bad_pcnt		equ	$04
-pc_err_bus_err		equ	$06
-pc_err_bad_unit_num	equ	$11
-pc_err_bad_ctl		equ	$21
-pc_err_bad_ctl_param	equ	$22
-pc_err_io_error		equ	$27
-pc_err_no_drive		equ	$28
-pc_err_no_write		equ	$2b	; write-protected
-pc_err_bad_block_num	equ	$2d
-pc_err_offline		equ	$2f
+err_bad_cmd		equ	$01
+err_bad_pcnt		equ	$04
+err_bus_err		equ	$06
+err_bad_unit_num	equ	$11
+err_bad_ctl		equ	$21
+err_bad_ctl_param	equ	$22
+err_io_error		equ	$27
+err_no_drive		equ	$28
+err_no_write		equ	$2b	; write-protected
+err_bad_block_num	equ	$2d
+err_offline		equ	$2f
 ; Protocol Converter error codes $30..$3f are device-specific errors
 ; Protocol Converter error codes $50..$7f are device-specific non-fatal errors
 
@@ -389,7 +389,7 @@ slot_prodos:
 
 slot_protocol_converter
 	jsr	romsel
-	jmp	protocol_converter
+	jmp	pconv
 
 slot_prodos_x:
 	jsr	romsel
@@ -435,8 +435,8 @@ Lcnf2:	pla
 
 	org	$c800
 
-	public	protocol_converter	; referenced from slot
-protocol_converter:
+	public	pconv	; referenced from slot
+pconv:
 	jsr	Scd99
 
 	ldx	#$09	; save ten bytes from Z42 on stack
@@ -464,10 +464,10 @@ Lc825:	dey
 	sty	shg_05f8
 	tax
 	cmp	#$0a
-	bcs	ret_pc_err_bad_cmd
+	bcs	ret_err_bad_cmd
 	lda	Dc887,x
 	cmp	(Z43),y
-	bne	ret_pc_err_bad_pcnt
+	bne	ret_err_bad_pcnt
 
 	ldy	#$08
 Lc83f:	lda	(Z43),y
@@ -476,7 +476,7 @@ Lc83f:	lda	(Z43),y
 	bne	Lc83f
 
 	lsr		; first param is unit num, only allow 0 and 1
-	bne	ret_pc_err_bad_unit_num
+	bne	ret_err_bad_unit_num
 
 	ldx	shg_0778
 
@@ -489,14 +489,14 @@ Lc83f:	lda	(Z43),y
 	lda	Z47
 	rts
 
-ret_pc_err_bad_unit_num:
+ret_err_bad_unit_num:
 	lda	#$11
 	skip2
-ret_pc_err_bad_cmd:
-	lda	#pc_err_bad_cmd
+ret_err_bad_cmd:
+	lda	#err_bad_cmd
 	skip2
-ret_pc_err_bad_pcnt:
-	lda	#pc_err_bad_pcnt
+ret_err_bad_pcnt:
+	lda	#err_bad_pcnt
 LC863:	sta	shg_04f8
 Lc866:	ldx	#$00
 Lc868:	pla
@@ -539,7 +539,7 @@ pc_cmd_format_init:
 	jmp	Lc866
 
 pc_cmd_rw_char:
-	jmp	ret_pc_err_bad_cmd
+	jmp	ret_err_bad_cmd
 
 pc_cmd_write_bytes:
 	bcs	Lc8c5
@@ -968,29 +968,32 @@ prodos:
 	lda	Z43
 	bmi	Lcc0c
 	ldy	Z42
-	beq	Lcc0f
+	beq	prodos_status
 	dey
-	beq	Lcc1f
+	beq	prodos_read
 	dey
-	beq	Lcc3d
+	beq	prodos_write
 	dey
-	beq	Lcc1b
-	ldy	#$01
+	beq	prodos_format
+	ldy	#err_bad_cmd
 	skip2
-lcc0a:	ldy	#$27
+lcc0a:	ldy	#err_io_error
 Lcc0c:	tya
 	sec
 	rts
 
-Lcc0f:	ldy	mslot
+prodos_status:
+	ldy	mslot
 	jsr	Scfe4
 	ldy	shg_0478
 	ldx	shg_04f8
-Lcc1b:	lda	#$00
+prodos_format
+:	lda	#$00
 	clc
 	rts
 
-Lcc1f:	jsr	Scc58
+prodos_read:
+	jsr	Scc58
 	bcs	Lcc0a
 	ldy	#$00
 Lcc26:	lda	Dbffb,x
@@ -1007,7 +1010,8 @@ Lcc38:	dec	Z45
 	clc
 	rts
 
-Lcc3d:	jsr	Scc58
+prodos_write:
+	jsr	Scc58
 	bcs	Lcc0a
 	ldy	#$00
 Lcc44:	lda	(Z44),y
