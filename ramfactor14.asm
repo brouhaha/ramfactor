@@ -149,19 +149,25 @@ D010b	equ	$010b
 D010c	equ	$010c
 D01a9	equ	$01a9
 D0200	equ	$0200
+D0400	equ	$0400
 
-; screen holes, global
+; screen holes, global (not indexed)
+shg_0478	equ	$0478
+shg_04f8	equ	$04f8
+shg_0578	equ	$0578
+shg_05f8	equ	$05f8
+shg_0778	equ	$0778
 mslot	equ	$07f8
 
-; screen holes, slot-indexed
-D0478	equ	$0478	; # blocks of whole card, divided by 256
-D04f8	equ	$04f8	; index to partition data
-D0578	equ	$0578	; partition base address, high bbyte
-D05f8	equ	$05f8	; partition base address, mid byte
-D0678	equ	$0678	; current partition size, pages, high byte
-D06f8	equ	$06f8	; current partition size, pages, low byte
-D0778	equ	$0778	; operating system code
-D07f8	equ	$07f8	; operating system check code
+; screen holes, indexed by $Cn, where n is slot number (1 through 7)
+shs_card_block_count	equ	$0478-$c0	; # blocks of whole card, divided by 256
+shs_idx_part_data	equ	$04f8-$c0	; index to partition data
+shs_part_base_high	equ	$0578-$c0	; partition base address, high bbyte
+shs_part_base_mid	equ	$05f8-$c0	; partition base address, mid byte
+shs_cur_part_size_high	equ	$0678-$c0	; current partition size, pages, high byte
+shs_cur_part_size_low	equ	$06f8-$c0	; current partition size, pages, low byte
+shs_os_code		equ	$0778-$c0	; operating system code
+shs_os_check		equ	$07f8-$c0	; operating system check code
 
 D0800	equ	$0800
 L0801	equ	$0801
@@ -276,7 +282,7 @@ romsel:	ldy	#$c0+slotnum
 	asl	Dc0nf+(slotnum*$10)	; set bank 0
 	ldx	#$88+(slotnum*$10)
 	sty	mslot
-	stx	D0778
+	stx	shg_0778
 	jmp	Lc9df
 
 boot4:	lda	#$c0+slotnum
@@ -306,7 +312,7 @@ Lcn60:	lda	L00
 	jsr	Scn7b
 	jmp	sloop
 
-Lcn6e:	lda	D04f8-$c0,Y
+Lcn6e:	lda	shs_idx_part_data,Y
 	cmp	#$01
 	bne	Lcn9f
 	jsr	Scn7b
@@ -318,9 +324,9 @@ Scn7b:	jsr	Sca9a
 	ldy	#$c0+slotnum	; high byte of slot ROM base c100
 	lda	L0801
 	beq	Lcn9a
-	lda	D07f8-$c0,Y
+	lda	shs_os_check,Y
 	eor	#$5a
-	cmp	D0778-$c0,Y
+	cmp	shs_os_code,Y
 	bne	Lcn9a
 	sta	proflag
 	ldx	#(slotnum*$10)
@@ -449,9 +455,9 @@ Lc818:	lda	(Z45),Y
 	inc	D010c,X
 Lc825:	dey
 	bne	Lc818
-	sty	D04f8
-	sty	D0578
-	sty	D05f8
+	sty	shg_04f8
+	sty	shg_0578
+	sty	shg_05f8
 	tax
 	cmp	#$0a
 	bcs	ret_pc_err_bad_cmd
@@ -468,7 +474,7 @@ Lc83f:	lda	(Z43),Y
 	lsr		; first param is unit num, only allow 0 and 1
 	bne	ret_pc_err_bad_unit_num
 
-	ldx	D0778
+	ldx	shg_0778
 
 	ldy	Z42	; protocol converter command
 	lda	#$c8
@@ -487,16 +493,16 @@ ret_pc_err_bad_cmd:
 	skip2
 ret_pc_err_bad_pcnt:
 	lda	#pc_err_bad_pcnt
-LC863:	sta	D04f8
+LC863:	sta	shg_04f8
 Lc866:	ldx	#$00
 Lc868:	pla
 	sta	Z42,X
 	inx
 	cpx	#$0a
 	bcc	Lc868
-	ldy	D05f8
-	ldx	D0578
-	lda	D04f8
+	ldy	shg_05f8
+	ldx	shg_0578
+	lda	shg_04f8
 	bne	Lc87c
 	clc
 Lc87c:	rts
@@ -570,7 +576,7 @@ pc_cmd_status:
 	bcs	Lc8e0
 	bne	Lc89f
 	ldy	#$08
-	sty	D0578
+	sty	shg_0578
 Lc8d4:	dey
 	sta	(Z45),Y
 	bne	Lc8d4
@@ -584,17 +590,17 @@ Lc8e0:	beq	Lc8e9
 	bne	Lc89f
 	skip2
 Lc8e9:	ldy	#$04
-	sty	D0578
+	sty	shg_0578
 	dey
 Lc8ef:	lda	Dc9c6,Y
 	cpy	#$02
 	bne	Lc904
-	ldx	D07f8
-	lda	D0678-$c0,X
+	ldx	mslot
+	lda	shs_cur_part_size_high,X
 	lsr
 	sta	(Z45),Y
 	dey
-	lda	D06f8-$c0,X
+	lda	shs_cur_part_size_low,X
 	ror
 Lc904:	sta	(Z45),Y
 	dey
@@ -623,7 +629,7 @@ Lc923:	jsr	Sc964
 	bcc	Lc932
 	sta	wrauxmem
 Lc932:	lda	Z48
-	sta	D05f8
+	sta	shg_05f8
 	beq	Lc947
 Lc939:	lda	Dbffb,X
 	sta	(Z45),Y
@@ -634,7 +640,7 @@ Lc939:	lda	Dbffb,X
 	bne	Lc939
 Lc947:	lda	Z47
 	beq	Lc958
-	sta	D0578
+	sta	shg_0578
 Lc94e:	lda	Dbffb,X
 	sta	(Z45),Y
 	iny
@@ -669,7 +675,7 @@ Lc982:	jsr	Sc964
 	bcc	Lc994
 	sta	rdauxram
 Lc994:	lda	Z48
-	sta	D05f8
+	sta	shg_05f8
 	beq	Lc9a9
 Lc99b:	lda	(Z45),Y
 	sta	Dbffb,X
@@ -679,7 +685,7 @@ Lc99b:	lda	(Z45),Y
 	dec	Z48
 	bne	Lc99b
 Lc9a9:	lda	Z47
-	sta	D0578
+	sta	shg_0578
 	beq	Lc9ba
 Lc9b0:	lda	(Z45),Y
 	sta	Dbffb,X
@@ -699,7 +705,7 @@ Dc9c6:	fcb	$f8,$00,$00,$00
 	
 	fcb	$00,$00,$00,$00
 
-Lc9df:	ldy	D07f8
+Lc9df:	ldy	mslot
 	jsr	Sca8e
 	lda	Dbffb,X
 	cmp	#$ae
@@ -708,30 +714,30 @@ Lc9df:	ldy	D07f8
 	cmp	#$5a
 	bne	Lca31
 	lda	Dbffb,X
-	sta	D04f8-$c0,Y
+	sta	shs_idx_part_data,Y
 	eor	#$5a
 	cmp	Dbffb,X
 	bne	Lca31
 	lda	Dbffb,X
-	sta	D0478-$c0,Y
-	lda	D04f8-$c0,Y
+	sta	shs_card_block_count,Y
+	lda	shs_idx_part_data,Y
 	sta	Dbff8,X
 	lda	Dbffb,X
-	sta	D0578-$c0,Y
+	sta	shs_part_base_high,Y
 	lda	Dbffb,X
-	sta	D05f8-$c0,Y
+	sta	shs_part_base_mid,Y
 	lda	Dbffb,X
-	sta	D0678-$c0,Y
+	sta	shs_cur_part_size_high,Y
 	lda	Dbffb,X
-	sta	D06f8-$c0,Y
+	sta	shs_cur_part_size_low,Y
 	lda	Dbffb,X
-	sta	D0778-$c0,Y
+	sta	shs_os_code,Y
 	lda	Dbffb,X
-	sta	D07f8-$c0,Y
+	sta	shs_os_check,Y
 	rts
 
-Lca31:	lda	D0778-$c0,Y
-	eor	D07f8-$c0,Y
+Lca31:	lda	shs_os_code,Y
+	eor	shs_os_check,Y
 	cmp	#$5a
 	beq	Lca73
 	jsr	Sca8e
@@ -751,24 +757,24 @@ Lca31:	lda	D0778-$c0,Y
 	cmp	#$be
 	bne	Lca6a
 Lca61:	txa
-	sta	D0778-$c0,Y
+	sta	shs_os_code,Y
 	eor	#$5a
-	sta	D07f8-$c0,Y
+	sta	shs_os_check,Y
 Lca6a:	jsr	Scb00
-	ldy	D07f8
-	sta	D0478-$c0,Y
-Lca73:	lda	D0478-$c0,Y
+	ldy	mslot
+	sta	shs_card_block_count,Y
+Lca73:	lda	shs_card_block_count,Y
 	asl
-	sta	D0678-$c0,Y
+	sta	shs_cur_part_size_high,Y
 	lda	#$00
-	sta	D06f8-$c0,Y
-	sta	D05f8-$c0,Y
-	sta	D0578-$c0,Y
+	sta	shs_cur_part_size_low,Y
+	sta	shs_part_base_mid,Y
+	sta	shs_part_base_high,Y
 	lda	#$01
-	sta	D04f8-$c0,Y
+	sta	shs_idx_part_data,Y
 	rts
 
-Sca8b:	ldx	D0778
+Sca8b:	ldx	shg_0778
 
 Sca8e:	lda	#$00
 	sta	Dbff8,X
@@ -778,15 +784,15 @@ Sca8e:	lda	#$00
 
 Sca9a:	jsr	Sca8e
 
-Sca9d:	ldy	D07f8
-	lda	D0478-$c0,Y
+Sca9d:	ldy	mslot
+	lda	shs_card_block_count,Y
 	cmp	#$09
 	lda	Dbffa,X
 	bcs	Lcaac
 	and	#$0f
 Lcaac:	pha
 	bne	Lcacd
-	lda	D04f8-$c0,Y
+	lda	shs_idx_part_data,Y
 	cmp	#$08
 	bne	Lcacd
 	lda	Dbff9,X
@@ -794,7 +800,7 @@ Lcaac:	pha
 	bcs	Lcacd
 	ora	#$fe
 	sta	Dbff9,X
-	lda	D0478-$c0,Y
+	lda	shs_card_block_count,Y
 	sbc	#$00
 	rol
 	sta	Dbffa,X
@@ -802,16 +808,16 @@ Lcacb:	pla
 	rts
 
 Lcacd:	lda	Dbff9,X
-	cmp	D06f8-$c0,Y
+	cmp	shs_cur_part_size_low,Y
 	pla
 	pha
-	sbc	D0678-$c0,Y
+	sbc	shs_cur_part_size_high,Y
 	bcs	Lcacb
 	lda	Dbff9,X
-	adc	D05f8-$c0,Y
+	adc	shs_part_base_mid,Y
 	sta	Dbff9,X
 	pla
-	adc	D0578-$c0,Y
+	adc	shs_part_base_high,Y
 	sta	Dbffa,X
 	rts
 
@@ -964,10 +970,10 @@ Lcc0c:	tya
 	sec
 	rts
 
-Lcc0f:	ldy	D07f8
+Lcc0f:	ldy	mslot
 	jsr	Scfe4
-	ldy	D0478
-	ldx	D04f8
+	ldy	shg_0478
+	ldx	shg_04f8
 Lcc1b:	lda	#$00
 	clc
 	rts
@@ -1090,11 +1096,11 @@ Lccf5:	tya
 	sta	(Z48),Y
 	rts
 
-Sccfb:	ldy	D07f8
+Sccfb:	ldy	mslot
 	ldx	#$03
-Lcd00:	lda	D06f8-$c0,Y
+Lcd00:	lda	shs_cur_part_size_low,Y
 	cmp	Dcd31,X
-	lda	D0678-$c0,Y
+	lda	shs_cur_part_size_high,Y
 	sbc	Dcd2d,X
 	bcs	Lcd12
 	dex
@@ -1107,13 +1113,13 @@ Lcd12:	txa
 	rts
 
 Scd16:	clc
-	ldy	D07f8
-	lda	D05f8-$c0,Y
+	ldy	mslot
+	lda	shs_part_base_mid,Y
 	adc	Dcd3b,X
-	sta	D05f8-$c0,Y
-	lda	D0578-$c0,Y
+	sta	shs_part_base_mid,Y
+	lda	shs_part_base_high,Y
 	adc	Dcd39,X
-	sta	D0578-$c0,Y
+	sta	shs_part_base_high,Y
 	rts
 
 Dcd2d:	fcb	$02,$04,$06,$0c
@@ -1124,15 +1130,15 @@ Dcd39:	fcb	$02,$06
 Dcd3b:	fcb	$30,$40
 
 
-Scd3d:	ldy	D07f8
+Scd3d:	ldy	mslot
 	jsr	Scfe4
 	cmp	#$10
 	bcs	Lcd4c
-	lda	D0478
+	lda	shg_0478
 	beq	Lcd55
-Lcd4c:	lda	D07f8-$c0,Y
+Lcd4c:	lda	shs_os_check,Y
 	eor	#$5a
-	cmp	D0778-$c0,Y
+	cmp	shs_os_code,Y
 	sec
 Lcd55:	rts
 
@@ -1145,24 +1151,24 @@ Scd56:	jsr	Scd3d
 	rts
 
 Lcd63:	lda	#$33
-	sta	D0778-$c0,Y
+	sta	shs_os_code,Y
 	jsr	Sccfb
 	bmi	Lcd97
 	bcc	Lcd91
-	lda	D05f8-$c0,Y
+	lda	shs_part_base_mid,Y
 	pha
-	lda	D0578-$c0,Y
+	lda	shs_part_base_high,Y
 	pha
-	stx	D04f8
+	stx	shg_04f8
 	jsr	Scd16
 	ldy	Dcfe2,X
 	jsr	Scdfb
-	ldx	D04f8
-	ldy	D07f8
+	ldx	shg_04f8
+	ldy	mslot
 	pla
-	sta	D0578-$c0,Y
+	sta	shs_part_base_high,Y
 	pla
-	sta	D05f8-$c0,Y
+	sta	shs_part_base_mid,Y
 Lcd91:	ldy	Dcfe2,X
 	jmp	Lcdc1
 
@@ -1179,34 +1185,34 @@ Lcda4:	clc
 
 Lcda6:	jsr	Scdec
 	bne	Lcdb0
-	cmp	D0778-$c0,Y
+	cmp	shs_os_code,Y
 	beq	Lcda4
 Lcdb0:	sec
 	rts
 
 Lcdb2:	jsr	Scdec
 	bne	Lcdb0
-	sta	D0778-$c0,Y
+	sta	shs_os_code,Y
 	ldy	#$00
 	asl
 	bne	Lcdc1
 	ldy	#$87
 Lcdc1:	jsr	Scdfb
 	jsr	Sca8e
-	ldy	D07f8
-	lda	D04f8-$c0,Y
+	ldy	mslot
+	lda	shs_idx_part_data,Y
 	cmp	#$01
 	beq	Lcde2
 	clc
 	adc	#$04
 	sta	Dbff8,X
-	lda	D0778-$c0,Y
+	lda	shs_os_code,Y
 	sta	Dbffb,X
 	eor	#$5a
 	sta	Dbffb,X
-Lcde2:	lda	D0778-$c0,Y
+Lcde2:	lda	shs_os_code,Y
 	eor	#$5a
-	sta	D07f8-$c0,Y
+	sta	shs_os_check,Y
 	clc
 	rts
 
@@ -1215,7 +1221,7 @@ Scdec:	lda	proflag
 	cmp	#$4c
 Lcdf3:	rts
 
-Lcdf4:	ldx	D0778
+Lcdf4:	ldx	shg_0778
 	jsr	Sce67
 	iny
 
@@ -1232,9 +1238,9 @@ Sce06:	lda	#$00
 
 Lce0c:	tya
 	pha
-	lda	D04f8
+	lda	shg_04f8
 	cmp	#$01
-	lda	D0478
+	lda	shg_0478
 	sbc	#$00
 	lsr
 	lsr
@@ -1336,13 +1342,13 @@ Lceaf:	pha
 	bne	Lceaf
 	rts
 
-Lcec5:	lda	D04f8
+Lcec5:	lda	shg_04f8
 	sta	Dbffb,X
-	lda	D0478
+	lda	shg_0478
 Lcece:	sta	Dbffb,X
 	rts
 
-Lced2:	lda	D07f8
+Lced2:	lda	mslot
 	eor	#$f0
 	bne	Lcece
 Lced9:	lda	#$00
@@ -1362,7 +1368,7 @@ Lced9:	lda	#$00
 
 Lcef4:	tya
 	pha
-	ldy	D0478
+	ldy	shg_0478
 	beq	Lcf08
 	nop
 Lcefc:	tya
@@ -1373,7 +1379,7 @@ Lcefc:	tya
 	tay
 	dey
 	bne	Lcefc
-Lcf08:	lda	D04f8
+Lcf08:	lda	shg_04f8
 	pha
 	lsr
 	lsr
@@ -1429,12 +1435,12 @@ Dcf30:	fcb	$01,$00,$00,$02,$02,$01,$02,$00
 
 Dcfe2:	fcb	$30,$5c
 
-Scfe4:	lda	D0678-$c0,Y
+Scfe4:	lda	shs_cur_part_size_high,Y
 	lsr
-	sta	D0478
-	lda	D06f8-$c0,Y
+	sta	shg_0478
+	lda	shs_cur_part_size_low,Y
 	ror
-	sta	D04f8
+	sta	shg_04f8
 	rts
 
 	fillto	$d000,$ff
@@ -1450,8 +1456,6 @@ b1_diag	equ	*-$1000
 Z24	equ	$24
 Z28	equ	$28
 Z29	equ	$29
-
-D0400	equ	$0400
 	
 diag:	stx	D0d2b
 	jsr	home
@@ -1476,8 +1480,8 @@ L0a1b:	sty	Z3e
 	sta	Dbff9,X
 	lda	#$ff
 	sta	Dbffb,X
-	ldy	D07f8
-	sta	D0778-$c0,Y
+	ldy	mslot
+	sta	shs_os_code,Y
 L0a3d:	lda	#$00
 	sta	Z24
 	ldy	#d_msg_idx_pass
@@ -1526,7 +1530,7 @@ L0a80:	tya
 
 L0a9a:	ldy	#d_msg_idx_address
 	jsr	d_msgout
-	ldx	D0778
+	ldx	shg_0778
 	lda	Dbff8,X
 	dec	Dbff8,X
 	and	#$7f
@@ -1892,12 +1896,6 @@ Z32	equ	$32
 Z3e	equ	$3e
 Z3f	equ	$3f
 
-D03b8	equ	$03b8
-D06b8	equ	$06b8
-D0738	equ	$0738
-D0778	equ	$0778
-nnD07f8	equ	$07f8
-
 D0800	equ	$0800
 D0801	equ	$0801
 D0802	equ	$0802
@@ -1949,9 +1947,9 @@ partmgr:
 	eor	Dbffb,X
 	cmp	#$5a
 	beq	L0a6b
-L0a1b:	ldy	D07f8
-	lda	D06b8,Y
-	eor	D0738,Y
+L0a1b:	ldy	mslot
+	lda	shs_os_code,Y
+	eor	shs_os_check,Y
 	cmp	#$5a
 	bne	L0a3f
 	jsr	home
@@ -1970,8 +1968,8 @@ L0a3f:	jsr	Sca8b
 	jsr	Sca8b
 	lda	#$04
 	sta	Dbff8,X
-	ldy	D07f8
-	lda	D03b8,Y
+	ldy	mslot
+	lda	shs_card_block_count,Y
 	pha
 	sta	Dbffb,X
 	lda	#$0a
@@ -1994,7 +1992,7 @@ L0a7d:	lda	#$00
 	sta	Z25
 	ldy	#p_msg_idx_heading
 	jsr	p_msgout
-	lda	D07f8
+	lda	mslot
 	eor	#$70
 	jsr	cout
 	jsr	crout
@@ -2416,8 +2414,8 @@ L0e0e:	ldx	#$01
 	lda	#$00
 	beq	L0e2f
 
-S0e27:	ldx	D0778
-	ldy	D07f8
+S0e27:	ldx	shg_0778
+	ldy	mslot
 	lda	#$7b
 L0e2f:	sty	L00+1
 	sta	L00
