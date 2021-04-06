@@ -175,7 +175,7 @@ D0800	equ	$0800
 L0801	equ	$0801
 D0900	equ	$0900
 
-L0a00	equ	$0a00
+ram_application_base	equ	$0a00
 
 Dbd12	equ	$bd12	; RWTS patch loc, three bytes
 
@@ -314,7 +314,7 @@ Lcn60:	lda	L00
 	jsr	Scn7b
 	jmp	sloop
 
-Lcn6e:	lda	shs_idx_part_data,Y
+Lcn6e:	lda	shs_idx_part_data,y
 	cmp	#$01
 	bne	Lcn9f
 	jsr	Scn7b
@@ -326,9 +326,9 @@ Scn7b:	jsr	Sca9a
 	ldy	#$c0+slotnum	; high byte of slot ROM base c100
 	lda	L0801
 	beq	Lcn9a
-	lda	shs_os_check,Y
+	lda	shs_os_check,y
 	eor	#$5a
-	cmp	shs_os_code,Y
+	cmp	shs_os_code,y
 	bne	Lcn9a
 	sta	proflag
 	ldx	#(slotnum*$10)
@@ -346,8 +346,8 @@ Lcn9f:	ldy	#$05
 ; copy four bytes from table to Z42..Z45
 ; gets download routine start address in Z42, end+1 in Z44
 Lcna1:	ldx	#$03
-Lcna3:	lda	Dcnd5,Y
-	sta	Z42,X
+Lcna3:	lda	Dcnd5,y
+	sta	Z42,x
 	dey
 	dex
 	bpl	Lcna3
@@ -362,8 +362,8 @@ Lcna3:	lda	Dcnd5,Y
 	lda	#$0a
 	sta	Z3f
 
-Lcnbb:	lda	(Z42),Y	; copy down to RAM
-	sta	(Z3e),Y
+Lcnbb:	lda	(Z42),y	; copy down to RAM
+	sta	(Z3e),y
 	iny
 	bne	Lcnc6
 	inc	Z3f
@@ -375,7 +375,7 @@ Lcnc6:	cpy	Z44
 
 	asl	Dc0nf+(slotnum*$10)	; set bank 0
 	plp
-	jmp	L0a00
+	jmp	ram_application_base
 
 ; table of bank 1 regions
 Dcnd5:	fdb	b1_diag		; start of diag code
@@ -440,23 +440,23 @@ protocol_converter:
 	jsr	Scd99
 
 	ldx	#$09	; save ten bytes from Z42 on stack
-Lc805:	lda	Z42,X
+Lc805:	lda	Z42,x
 	pha
 	dex
 	bpl	Lc805
 	tsx
 
-	lda	D010c,X
+	lda	D010c,x
 	sta	Z46
-	lda	D010b,X
+	lda	D010b,x
 	sta	Z45
 
 	ldy	#$03
-Lc818:	lda	(Z45),Y
-	sta	Z41,Y
-	inc	D010b,X
+Lc818:	lda	(Z45),y
+	sta	Z41,y
+	inc	D010b,x
 	bne	Lc825
-	inc	D010c,X
+	inc	D010c,x
 Lc825:	dey
 	bne	Lc818
 	sty	shg_04f8
@@ -465,13 +465,13 @@ Lc825:	dey
 	tax
 	cmp	#$0a
 	bcs	ret_pc_err_bad_cmd
-	lda	Dc887,X
-	cmp	(Z43),Y
+	lda	Dc887,x
+	cmp	(Z43),y
 	bne	ret_pc_err_bad_pcnt
 
 	ldy	#$08
-Lc83f:	lda	(Z43),Y
-	sta	Z43,Y
+Lc83f:	lda	(Z43),y
+	sta	Z43,y
 	dey
 	bne	Lc83f
 
@@ -483,7 +483,7 @@ Lc83f:	lda	(Z43),Y
 	ldy	Z42	; protocol converter command
 	lda	#$c8
 	pha
-	lda	Dc87d,Y
+	lda	Dc87d,y
 	pha
 	lsr	Z44
 	lda	Z47
@@ -500,7 +500,7 @@ ret_pc_err_bad_pcnt:
 LC863:	sta	shg_04f8
 Lc866:	ldx	#$00
 Lc868:	pla
-	sta	Z42,X
+	sta	Z42,x
 	inx
 	cpx	#$0a
 	bcc	Lc868
@@ -582,10 +582,10 @@ pc_cmd_status:
 	ldy	#$08
 	sty	shg_0578
 Lc8d4:	dey
-	sta	(Z45),Y
+	sta	(Z45),y
 	bne	Lc8d4
 	lda	#$01
-	sta	(Z45),Y
+	sta	(Z45),y
 	jmp	Lc866
 
 Lc8e0:	beq	Lc8e9
@@ -596,17 +596,17 @@ Lc8e0:	beq	Lc8e9
 Lc8e9:	ldy	#$04
 	sty	shg_0578
 	dey
-Lc8ef:	lda	Dc9c6,Y
+Lc8ef:	lda	Dc9c6,y
 	cpy	#$02
 	bne	Lc904
 	ldx	mslot
-	lda	shs_cur_part_size_high,X
+	lda	shs_cur_part_size_high,x
 	lsr
-	sta	(Z45),Y
+	sta	(Z45),y
 	dey
-	lda	shs_cur_part_size_low,X
+	lda	shs_cur_part_size_low,x
 	ror
-Lc904:	sta	(Z45),Y
+Lc904:	sta	(Z45),y
 	dey
 	bpl	Lc8ef
 	jmp	Lc866
@@ -635,8 +635,8 @@ Lc923:	jsr	Sc964
 Lc932:	lda	Z48
 	sta	shg_05f8
 	beq	Lc947
-Lc939:	lda	Dbffb,X
-	sta	(Z45),Y
+Lc939:	lda	Dbffb,x
+	sta	(Z45),y
 	iny
 	bne	Lc939
 	inc	Z46
@@ -645,8 +645,8 @@ Lc939:	lda	Dbffb,X
 Lc947:	lda	Z47
 	beq	Lc958
 	sta	shg_0578
-Lc94e:	lda	Dbffb,X
-	sta	(Z45),Y
+Lc94e:	lda	Dbffb,x
+	sta	(Z45),y
 	iny
 	cpy	Z47
 	bne	Lc94e
@@ -657,12 +657,12 @@ Lc958:	sta	wrmainram
 Lc961:	jmp	Lc866
 
 Sc964:	lda	Z49
-	sta	Dbff8,X
+	sta	Dbff8,x
 	lda	Z4a
-	sta	Dbff9,X
+	sta	Dbff9,x
 	lda	Z4b
 	and	#$7f
-	sta	Dbffa,X
+	sta	Dbffa,x
 	jsr	Sca9d
 	ldy	#$00
 	lda	Z4b
@@ -681,8 +681,8 @@ Lc982:	jsr	Sc964
 Lc994:	lda	Z48
 	sta	shg_05f8
 	beq	Lc9a9
-Lc99b:	lda	(Z45),Y
-	sta	Dbffb,X
+Lc99b:	lda	(Z45),y
+	sta	Dbffb,x
 	iny
 	bne	Lc99b
 	inc	Z46
@@ -691,8 +691,8 @@ Lc99b:	lda	(Z45),Y
 Lc9a9:	lda	Z47
 	sta	shg_0578
 	beq	Lc9ba
-Lc9b0:	lda	(Z45),Y
-	sta	Dbffb,X
+Lc9b0:	lda	(Z45),y
+	sta	Dbffb,x
 	iny
 	cpy	Z47
 	bne	Lc9b0
@@ -712,46 +712,46 @@ Dc9c6:	fcb	$f8,$00,$00,$00
 	public	Lc9df	; referenced by slot, partmgr
 Lc9df:	ldy	mslot
 	jsr	Sca8e
-	lda	Dbffb,X
+	lda	Dbffb,x
 	cmp	#$ae
 	bne	Lca31
-	eor	Dbffb,X
+	eor	Dbffb,x
 	cmp	#$5a
 	bne	Lca31
-	lda	Dbffb,X
-	sta	shs_idx_part_data,Y
+	lda	Dbffb,x
+	sta	shs_idx_part_data,y
 	eor	#$5a
-	cmp	Dbffb,X
+	cmp	Dbffb,x
 	bne	Lca31
-	lda	Dbffb,X
-	sta	shs_card_block_count,Y
-	lda	shs_idx_part_data,Y
-	sta	Dbff8,X
-	lda	Dbffb,X
-	sta	shs_part_base_high,Y
-	lda	Dbffb,X
-	sta	shs_part_base_mid,Y
-	lda	Dbffb,X
-	sta	shs_cur_part_size_high,Y
-	lda	Dbffb,X
-	sta	shs_cur_part_size_low,Y
-	lda	Dbffb,X
-	sta	shs_os_code,Y
-	lda	Dbffb,X
-	sta	shs_os_check,Y
+	lda	Dbffb,x
+	sta	shs_card_block_count,y
+	lda	shs_idx_part_data,y
+	sta	Dbff8,x
+	lda	Dbffb,x
+	sta	shs_part_base_high,y
+	lda	Dbffb,x
+	sta	shs_part_base_mid,y
+	lda	Dbffb,x
+	sta	shs_cur_part_size_high,y
+	lda	Dbffb,x
+	sta	shs_cur_part_size_low,y
+	lda	Dbffb,x
+	sta	shs_os_code,y
+	lda	Dbffb,x
+	sta	shs_os_check,y
 	rts
 
-Lca31:	lda	shs_os_code,Y
-	eor	shs_os_check,Y
+Lca31:	lda	shs_os_code,y
+	eor	shs_os_check,y
 	cmp	#$5a
 	beq	Lca73
 	jsr	Sca8e
 	lda	#$04
-	sta	Dbff9,X
-	lda	Dbffb,X
-	eor	Dbffb,X
-	eor	Dbffb,X
-	eor	Dbffb,X
+	sta	Dbff9,x
+	lda	Dbffb,x
+	eor	Dbffb,x
+	eor	Dbffb,x
+	eor	Dbffb,x
 	ldx	#$4c
 	cmp	#$03
 	beq	Lca61
@@ -762,21 +762,21 @@ Lca31:	lda	shs_os_code,Y
 	cmp	#$be
 	bne	Lca6a
 Lca61:	txa
-	sta	shs_os_code,Y
+	sta	shs_os_code,y
 	eor	#$5a
-	sta	shs_os_check,Y
+	sta	shs_os_check,y
 Lca6a:	jsr	Scb00
 	ldy	mslot
-	sta	shs_card_block_count,Y
-Lca73:	lda	shs_card_block_count,Y
+	sta	shs_card_block_count,y
+Lca73:	lda	shs_card_block_count,y
 	asl
-	sta	shs_cur_part_size_high,Y
+	sta	shs_cur_part_size_high,y
 	lda	#$00
-	sta	shs_cur_part_size_low,Y
-	sta	shs_part_base_mid,Y
-	sta	shs_part_base_high,Y
+	sta	shs_cur_part_size_low,y
+	sta	shs_part_base_mid,y
+	sta	shs_part_base_high,y
 	lda	#$01
-	sta	shs_idx_part_data,Y
+	sta	shs_idx_part_data,y
 	rts
 
 	public	Sca8b	; referenced from diag, pmgr
@@ -784,59 +784,59 @@ Sca8b:	ldx	shg_0778
 
 	public	Sca8e	; referenced from diag, pmgr
 Sca8e:	lda	#$00
-	sta	Dbff8,X
-	sta	Dbff9,X
-	sta	Dbffa,X
+	sta	Dbff8,x
+	sta	Dbff9,x
+	sta	Dbffa,x
 	rts
 
 	public	Sca9a	; referenced from slot
 Sca9a:	jsr	Sca8e
 
 Sca9d:	ldy	mslot
-	lda	shs_card_block_count,Y
+	lda	shs_card_block_count,y
 	cmp	#$09
-	lda	Dbffa,X
+	lda	Dbffa,x
 	bcs	Lcaac
 	and	#$0f
 Lcaac:	pha
 	bne	Lcacd
-	lda	shs_idx_part_data,Y
+	lda	shs_idx_part_data,y
 	cmp	#$08
 	bne	Lcacd
-	lda	Dbff9,X
+	lda	Dbff9,x
 	cmp	#$02
 	bcs	Lcacd
 	ora	#$fe
-	sta	Dbff9,X
-	lda	shs_card_block_count,Y
+	sta	Dbff9,x
+	lda	shs_card_block_count,y
 	sbc	#$00
 	rol
-	sta	Dbffa,X
+	sta	Dbffa,x
 Lcacb:	pla
 	rts
 
-Lcacd:	lda	Dbff9,X
-	cmp	shs_cur_part_size_low,Y
+Lcacd:	lda	Dbff9,x
+	cmp	shs_cur_part_size_low,y
 	pla
 	pha
-	sbc	shs_cur_part_size_high,Y
+	sbc	shs_cur_part_size_high,y
 	bcs	Lcacb
-	lda	Dbff9,X
-	adc	shs_part_base_mid,Y
-	sta	Dbff9,X
+	lda	Dbff9,x
+	adc	shs_part_base_mid,y
+	sta	Dbff9,x
 	pla
-	adc	shs_part_base_high,Y
-	sta	Dbffa,X
+	adc	shs_part_base_high,y
+	sta	Dbffa,x
 	rts
 
 	public	Scaeb	; referenced from slot, pmgr
 Scaeb:	ldy	#$00
-Lcaed:	lda	Dbffb,X
-	sta	D0800,Y
+Lcaed:	lda	Dbffb,x
+	sta	D0800,y
 	iny
 	bne	Lcaed
-Lcaf6:	lda	Dbffb,X
-	sta	D0900,Y
+Lcaf6:	lda	Dbffb,x
+	sta	D0900,y
 	iny
 	bne	Lcaf6
 	rts
@@ -844,55 +844,55 @@ Lcaf6:	lda	Dbffb,X
 	public	Scb00	; referenced from diag
 Scb00:	jsr	Sca8b
 	tay
-	cmp	Dbffa,X
+	cmp	Dbffa,x
 	bne	Lcb0b
 	ldy	#$02
-Lcb0b:	ora	Dcb95,Y
+Lcb0b:	ora	Dcb95,y
 Lcb0e:	sta	Z3f
 	sta	Z3e
-	sta	Dbffa,X
-	lda	Dbffb,X
-	dec	Dbff8,X
+	sta	Dbffa,x
+	lda	Dbffb,x
+	dec	Dbff8,x
 	pha
 	lda	Z3f
-	sta	Dbffb,X
-	dec	Dbff8,X
-	and	Dcb95,Y
+	sta	Dbffb,x
+	dec	Dbff8,x
+	and	Dcb95,y
 	beq	Lcb3d
 	lda	Z3f
 	sec
-	sbc	Dcb98,Y
+	sbc	Dcb98,y
 	jmp	Lcb0e
 
 Lcb32:	clc
 	lda	Z3f
-	adc	Dcb98,Y
+	adc	Dcb98,y
 	sta	Z3f
-	sta	Dbffa,X
-Lcb3d:	lda	Dbffb,X
+	sta	Dbffa,x
+Lcb3d:	lda	Dbffb,x
 	cmp	Z3f
 	bne	Lcb83
 	eor	#$ff
-	dec	Dbff8,X
-	sta	Dbffb,X
-	dec	Dbff8,X
-	cmp	Dbffb,X
+	dec	Dbff8,x
+	sta	Dbffb,x
+	dec	Dbff8,x
+	cmp	Dbffb,x
 	bne	Lcb83
-	dec	Dbff8,X
+	dec	Dbff8,x
 	lda	Z3f
-	and	Dcb95,Y
-	cmp	Dcb95,Y
+	and	Dcb95,y
+	cmp	Dcb95,y
 	bne	Lcb32
 Lcb61:	lda	Z3e
-	sta	Dbffa,X
+	sta	Dbffa,x
 	pla
-	sta	Dbffb,X
-	dec	Dbff8,X
+	sta	Dbffb,x
+	dec	Dbff8,x
 	clc
 	lda	Z3e
-	adc	Dcb98,Y
+	adc	Dcb98,y
 	sta	Z3e
-	and	Dcb95,Y
+	and	Dcb95,y
 	bne	Lcb61
 	lda	Z3f
 	dey
@@ -901,11 +901,11 @@ Lcb61:	lda	Z3e
 	adc	#$02
 	rts
 
-Lcb83:	dec	Dbff8,X
+Lcb83:	dec	Dbff8,x
 	sec
 	lda	Z3f
 	beq	Lcb61
-	sbc	Dcb98,Y
+	sbc	Dcb98,y
 	sta	Z3f
 	jmp	Lcb61
 
@@ -921,10 +921,10 @@ Lcb9f:	lda	#$00
 Lcba1:	pha
 	sec
 	lda	Z3e
-	sbc	Dcbde,X
+	sbc	Dcbde,x
 	pha
 	lda	Z3f
-	sbc	Dcbe3,X
+	sbc	Dcbe3,x
 	bcc	Lcbba
 	sta	Z3f
 	pla
@@ -993,13 +993,13 @@ Lcc1b:	lda	#$00
 Lcc1f:	jsr	Scc58
 	bcs	Lcc0a
 	ldy	#$00
-Lcc26:	lda	Dbffb,X
-	sta	(Z44),Y
+Lcc26:	lda	Dbffb,x
+	sta	(Z44),y
 	iny
 	bne	Lcc26
 	inc	Z45
-Lcc30:	lda	Dbffb,X
-	sta	(Z44),Y
+Lcc30:	lda	Dbffb,x
+	sta	(Z44),y
 	iny
 	bne	Lcc30
 Lcc38:	dec	Z45
@@ -1010,26 +1010,26 @@ Lcc38:	dec	Z45
 Lcc3d:	jsr	Scc58
 	bcs	Lcc0a
 	ldy	#$00
-Lcc44:	lda	(Z44),Y
-	sta	Dbffb,X
+Lcc44:	lda	(Z44),y
+	sta	Dbffb,x
 	iny
 	bne	Lcc44
 	inc	Z45
-Lcc4e:	lda	(Z44),Y
-	sta	Dbffb,X
+Lcc4e:	lda	(Z44),y
+	sta	Dbffb,x
 	iny
 	bne	Lcc4e
 	beq	Lcc38
 
 Scc58:	lda	#$00
-	sta	Dbff8,X
+	sta	Dbff8,x
 	lda	Z46
 	asl
-	sta	Dbff9,X
+	sta	Dbff9,x
 	lda	Z47
 	rol
 	bcs	Lcc6e
-	sta	Dbffa,X
+	sta	Dbffa,x
 	jsr	Sca9d
 Lcc6e:	rts
 
@@ -1039,7 +1039,7 @@ Lcc6f:	jsr	Scd56
 	bcs	Lcce0
 	jsr	Sccfb
 	ldy	#$02
-	lda	(Z48),Y
+	lda	(Z48),y
 	sta	Z3e
 	eor	#$01
 	beq	Lcc88
@@ -1047,11 +1047,11 @@ Lcc6f:	jsr	Scd56
 	jsr	Scd16
 Lcc88:	ldy	#$0e
 	lda	#$fe
-	sta	(Z48),Y
+	sta	(Z48),y
 	ldy	#$04
 	sty	Z3f
-	lda	(Z48),Y
-	cmp	Dcd35,X
+	lda	(Z48),y
+	cmp	Dcd35,x
 	bcs	Lccdd
 	lsr
 	ror	Z3f
@@ -1065,26 +1065,26 @@ Lcc88:	ldy	#$0e
 	ror	Z3f
 Lcca9:	pha
 	iny
-	lda	(Z48),Y
-	cmp	Dcd37,X
+	lda	(Z48),y
+	cmp	Dcd37,x
 	bcs	Lccdd
 	ora	Z3f
 	pha
 	jsr	Sca8b
 	pla
-	sta	Dbff9,X
+	sta	Dbff9,x
 	pla
-	sta	Dbffa,X
+	sta	Dbffa,x
 	jsr	Sca9d
 	bcs	Lccdd
 	ldy	#$08
-	lda	(Z48),Y
+	lda	(Z48),y
 	sta	Z3e
 	iny
-	lda	(Z48),Y
+	lda	(Z48),y
 	sta	Z3f
 	ldy	#$0c
-	lda	(Z48),Y
+	lda	(Z48),y
 	tay
 	beq	Lccf4
 	dey
@@ -1094,27 +1094,27 @@ Lcca9:	pha
 Lccdd:	sec
 	ldy	#$80
 Lcce0:	bne	Lccf5
-Lcce2:	lda	(Z3e),Y
-	sta	Dbffb,X
+Lcce2:	lda	(Z3e),y
+	sta	Dbffb,x
 	iny
 	bne	Lcce2
 	beq	Lccf4
-Lccec:	lda	Dbffb,X
-	sta	(Z3e),Y
+Lccec:	lda	Dbffb,x
+	sta	(Z3e),y
 	iny
 	bne	Lccec
 Lccf4:	clc
 Lccf5:	tya
 	ldy	#$0d
-	sta	(Z48),Y
+	sta	(Z48),y
 	rts
 
 Sccfb:	ldy	mslot
 	ldx	#$03
-Lcd00:	lda	shs_cur_part_size_low,Y
-	cmp	Dcd31,X
-	lda	shs_cur_part_size_high,Y
-	sbc	Dcd2d,X
+Lcd00:	lda	shs_cur_part_size_low,y
+	cmp	Dcd31,x
+	lda	shs_cur_part_size_high,y
+	sbc	Dcd2d,x
 	bcs	Lcd12
 	dex
 	bpl	Lcd00
@@ -1127,12 +1127,12 @@ Lcd12:	txa
 
 Scd16:	clc
 	ldy	mslot
-	lda	shs_part_base_mid,Y
-	adc	Dcd3b,X
-	sta	shs_part_base_mid,Y
-	lda	shs_part_base_high,Y
-	adc	Dcd39,X
-	sta	shs_part_base_high,Y
+	lda	shs_part_base_mid,y
+	adc	Dcd3b,x
+	sta	shs_part_base_mid,y
+	lda	shs_part_base_high,y
+	adc	Dcd39,x
+	sta	shs_part_base_high,y
 	rts
 
 Dcd2d:	fcb	$02,$04,$06,$0c
@@ -1149,9 +1149,9 @@ Scd3d:	ldy	mslot
 	bcs	Lcd4c
 	lda	shg_0478
 	beq	Lcd55
-Lcd4c:	lda	shs_os_check,Y
+Lcd4c:	lda	shs_os_check,y
 	eor	#$5a
-	cmp	shs_os_code,Y
+	cmp	shs_os_code,y
 	sec
 Lcd55:	rts
 
@@ -1164,25 +1164,25 @@ Scd56:	jsr	Scd3d
 	rts
 
 Lcd63:	lda	#$33
-	sta	shs_os_code,Y
+	sta	shs_os_code,y
 	jsr	Sccfb
 	bmi	Lcd97
 	bcc	Lcd91
-	lda	shs_part_base_mid,Y
+	lda	shs_part_base_mid,y
 	pha
-	lda	shs_part_base_high,Y
+	lda	shs_part_base_high,y
 	pha
 	stx	shg_04f8
 	jsr	Scd16
-	ldy	Dcfe2,X
+	ldy	Dcfe2,x
 	jsr	Scdfb
 	ldx	shg_04f8
 	ldy	mslot
 	pla
-	sta	shs_part_base_high,Y
+	sta	shs_part_base_high,y
 	pla
-	sta	shs_part_base_mid,Y
-Lcd91:	ldy	Dcfe2,X
+	sta	shs_part_base_mid,y
+Lcd91:	ldy	Dcfe2,x
 	jmp	Lcdc1
 
 Lcd97:	sec
@@ -1198,14 +1198,14 @@ Lcda4:	clc
 
 Lcda6:	jsr	Scdec
 	bne	Lcdb0
-	cmp	shs_os_code,Y
+	cmp	shs_os_code,y
 	beq	Lcda4
 Lcdb0:	sec
 	rts
 
 Lcdb2:	jsr	Scdec
 	bne	Lcdb0
-	sta	shs_os_code,Y
+	sta	shs_os_code,y
 	ldy	#$00
 	asl
 	bne	Lcdc1
@@ -1213,19 +1213,19 @@ Lcdb2:	jsr	Scdec
 Lcdc1:	jsr	Scdfb
 	jsr	Sca8e
 	ldy	mslot
-	lda	shs_idx_part_data,Y
+	lda	shs_idx_part_data,y
 	cmp	#$01
 	beq	Lcde2
 	clc
 	adc	#$04
-	sta	Dbff8,X
-	lda	shs_os_code,Y
-	sta	Dbffb,X
+	sta	Dbff8,x
+	lda	shs_os_code,y
+	sta	Dbffb,x
 	eor	#$5a
-	sta	Dbffb,X
-Lcde2:	lda	shs_os_code,Y
+	sta	Dbffb,x
+Lcde2:	lda	shs_os_code,y
 	eor	#$5a
-	sta	shs_os_check,Y
+	sta	shs_os_check,y
 	clc
 	rts
 
@@ -1240,15 +1240,15 @@ Lcdf4:	ldx	shg_0778
 	iny
 
 	public	Scdfb	; referenced from pmgr
-Scdfb:	lda	Dcf30,Y
+Scdfb:	lda	Dcf30,y
 	bne	Lcdf4
 	rts
 
 Lce01:	and	#$0f
-	sta	Dbffb,X
+	sta	Dbffb,x
 
 Sce06:	lda	#$00
-	sta	Dbffb,X
+	sta	Dbffb,x
 	rts
 
 Lce0c:	tya
@@ -1269,9 +1269,9 @@ Lce23:	lsr
 	ror	Z3e
 	dey
 	bpl	Lce23
-	sta	Dbffb,X
+	sta	Dbffb,x
 	lda	Z3e
-	sta	Dbffb,X
+	sta	Dbffb,x
 	pla
 	tay
 	rts
@@ -1281,10 +1281,10 @@ Lce34:	jsr	Sce53
 Lce39:	pha
 	jsr	Sce06
 	lda	#$11
-	sta	Dbffb,X
+	sta	Dbffb,x
 	pla
 	pha
-	sta	Dbffb,X
+	sta	Dbffb,x
 	jsr	Sce53
 	pla
 	clc
@@ -1296,12 +1296,12 @@ Lce39:	pha
 Sce53:	lda	#$00
 	skip2
 Lce56:	lda	#$ff
-Lce58:	sta	Dbffb,X
-	cmp	Dbff8,X
+Lce58:	sta	Dbffb,x
+	cmp	Dbff8,x
 	bne	Lce58
 	ror
 	bcc	Lce66
-	sta	Dbffb,X
+	sta	Dbffb,x
 Lce66:	rts
 
 Sce67:	cmp	#$40
@@ -1335,8 +1335,8 @@ Lce8e:	pha
 	lda	#$ff
 	bcs	Lcea2
 	iny
-	lda	Dcf30,Y
-Lcea2:	sta	Dbffb,X
+	lda	Dcf30,y
+Lcea2:	sta	Dbffb,x
 	pla
 	sec
 	sbc	#$01
@@ -1347,10 +1347,10 @@ Lceab:	pla
 Lcead:	and	#$0f
 Lceaf:	pha
 	lda	#$ff
-	sta	Dbffb,X
-	sta	Dbffb,X
+	sta	Dbffb,x
+	sta	Dbffb,x
 	jsr	Sce06
-	sta	Dbffb,X
+	sta	Dbffb,x
 	pla
 	sec
 	sbc	#$01
@@ -1358,22 +1358,22 @@ Lceaf:	pha
 	rts
 
 Lcec5:	lda	shg_04f8
-	sta	Dbffb,X
+	sta	Dbffb,x
 	lda	shg_0478
-Lcece:	sta	Dbffb,X
+Lcece:	sta	Dbffb,x
 	rts
 
 Lced2:	lda	mslot
 	eor	#$f0
 	bne	Lcece
 Lced9:	lda	#$00
-	sta	Dbff8,X
+	sta	Dbff8,x
 	iny
-	lda	Dcf30,Y
-	sta	Dbff9,X
+	lda	Dcf30,y
+	sta	Dbff9,x
 	iny
-	lda	Dcf30,Y
-	sta	Dbffa,X
+	lda	Dcf30,y
+	sta	Dbffa,x
 	tya
 	pha
 	jsr	Sca9d
@@ -1411,13 +1411,13 @@ Lcf1b:	sec
 	dey
 	bpl	Lcf1b
 	asl
-	sta	Dbffb,X
+	sta	Dbffb,x
 	pla
 	tay
 	rts
 
 Scf27:	lda	#$ff
-Lcf29:	sta	Dbffb,X
+Lcf29:	sta	Dbffb,x
 	dey
 	bne	Lcf29
 	rts
@@ -1450,10 +1450,10 @@ Dcf30:	fcb	$01,$00,$00,$02,$02,$01,$02,$00
 
 Dcfe2:	fcb	$30,$5c
 
-Scfe4:	lda	shs_cur_part_size_high,Y
+Scfe4:	lda	shs_cur_part_size_high,y
 	lsr
 	sta	shg_0478
-	lda	shs_cur_part_size_low,Y
+	lda	shs_cur_part_size_low,y
 	ror
 	sta	shg_04f8
 	rts
@@ -1469,330 +1469,330 @@ Scfe4:	lda	shs_cur_part_size_high,Y
 b1_diag	equ	*-$1000
 
 	section	diag
-	phase	$0a00
+	phase	ram_application_base
 
 Z24	equ	$24
 Z28	equ	$28
 Z29	equ	$29
 	
-diag:	stx	D0d2b
+diag:	stx	dD0d2b
 	jsr	home
 	ldy	#d_msg_idx_banner
 	jsr	d_msgout
 	jsr	Scb00
-	sta	D0d2a
+	sta	dD0d2a
 	ldy	#$00
-	sty	D0d2f
+	sty	dD0d2f
 	asl
-	bcc	L0a1b
+	bcc	dL0a1b
 	dey
 	tya
-L0a1b:	sty	Z3e
+dL0a1b:	sty	Z3e
 	sta	Z3f
 	jsr	Scb9b
 	ldy	#d_msg_idx_bytes
 	jsr	d_msgout
 	jsr	Sca8b
-	sta	Dbffb,X
+	sta	Dbffb,x
 	lda	#$04
-	sta	Dbff9,X
+	sta	Dbff9,x
 	lda	#$ff
-	sta	Dbffb,X
+	sta	Dbffb,x
 	ldy	mslot
-	sta	shs_os_code,Y
-L0a3d:	lda	#$00
+	sta	shs_os_code,y
+dL0a3d:	lda	#$00
 	sta	Z24
 	ldy	#d_msg_idx_pass
 	jsr	d_msgout
-	lda	D0d2f
+	lda	dD0d2f
 	jsr	prbyte
 	ldy	#d_msg_idx_testing
 	jsr	d_msgout
 	lda	Z24
 	clc
 	adc	Z28
-	sta	S0ae4+1
+	sta	dS0ae4+1
 	lda	#$00
 	adc	Z29
-	sta	S0ae4+2
+	sta	dS0ae4+2
 	ldy	#$08
-L0a62:	dey
+dL0a62:	dey
 	dey
-	sty	D0d29
-	jsr	S0ae4
-	jsr	S0ae8
-	bcs	L0a80
-	ldy	D0d29
-	bne	L0a62
-	inc	D0d2f
+	sty	dD0d29
+	jsr	dS0ae4
+	jsr	dS0ae8
+	bcs	dL0a80
+	ldy	dD0d29
+	bne	dL0a62
+	inc	dD0d2f
 	lda	kbd
-	bpl	L0a3d
+	bpl	dL0a3d
 	sta	kbdstrb
 	rts
 
-L0a80:	tya
+dL0a80:	tya
 	pha
 	ldy	#d_msg_idx_card_failure
 	jsr	d_msgout
 	lda	#$08
 	sec
-	sbc	D0d29
+	sbc	dD0d29
 	lsr
 	tay
 	ora	#$b0
 	jsr	cout
 	cpy	#$03
-	bcs	L0a9a
+	bcs	dL0a9a
 	pla
 	rts
 
-L0a9a:	ldy	#d_msg_idx_address
+dL0a9a:	ldy	#d_msg_idx_address
 	jsr	d_msgout
 	ldx	shg_0778
-	lda	Dbff8,X
-	dec	Dbff8,X
+	lda	Dbff8,x
+	dec	Dbff8,x
 	and	#$7f
-	bne	L0ab9
-	lda	Dbff9,X
-	dec	Dbff9,X
+	bne	dL0ab9
+	lda	Dbff9,x
+	dec	Dbff9,x
 	and	#$7f
-	bne	L0ab9
-	dec	Dbffa,X
-L0ab9:	lda	Dbffa,X
-	ldy	D0d2a
+	bne	dL0ab9
+	dec	Dbffa,x
+dL0ab9:	lda	Dbffa,x
+	ldy	dD0d2a
 	cpy	#$09
-	bcs	L0ac5
+	bcs	dL0ac5
 	and	#$0f
-L0ac5:	jsr	prbyte
-	lda	Dbff9,X
+dL0ac5:	jsr	prbyte
+	lda	Dbff9,x
 	jsr	prbyte
-	lda	Dbff8,X
+	lda	Dbff8,x
 	jsr	prbyte
 	lda	#$ad
 	jsr	cout
 	pla
-	eor	Dbffb,X
+	eor	Dbffb,x
 	jsr	prbyte
 	jsr	crout
 	rts
 
-S0ae4:	inc	D0400
+dS0ae4:	inc	D0400
 	rts
 
-S0ae8:	lda	D0af4+1,Y
+dS0ae8:	lda	dD0af4+1,y
 	pha
-	lda	D0af4,Y
+	lda	dD0af4,y
 	pha
-	ldx	D0d2b
+	ldx	dD0d2b
 	rts
 
-D0af4:	fdb	L0be4-1
-	fdb	L0b81-1
-	fdb	L0b1e-1
-	fdb	L0afc-1
+dD0af4:	fdb	dL0be4-1
+	fdb	dL0b81-1
+	fdb	dL0b1e-1
+	fdb	dL0afc-1
 
 
-l0afc:	ldy	#$00
-L0afe:	tya
-	jsr	S0d0a
-	eor	Dbffa,X
+dL0afc:	ldy	#$00
+dL0afe:	tya
+	jsr	dS0b0a
+	eor	Dbffa,x
 	and	#$0f
-	bne	L0b1c
+	bne	dL0b1c
 	tya
-	cmp	Dbff9,X
-	bne	L0b1c
-	cmp	Dbff8,X
-	bne	L0b1c
-	jsr	S0ae4
+	cmp	Dbff9,x
+	bne	dL0b1c
+	cmp	Dbff8,x
+	bne	dL0b1c
+	jsr	dS0ae4
 	iny
-	bne	L0afe
+	bne	dL0afe
 	clc
 	rts
 
-L0b1c:	sec
+dL0b1c:	sec
 	rts
 
-l0b1e:	lda	#$00
+dL0b1e:	lda	#$00
 	ldy	#$f0
-	jsr	S0d0a
-L0b25:	lda	D0d28
-	jsr	S0b6b
-	sta	D0d28
-	lda	D0d27
-	jsr	S0b6b
-	sta	D0d27
-	jsr	S0d13
-	inc	D0d28
-	bne	L0b4b
-	inc	D0d27
-	bne	L0b4b
-	inc	D0d26
-	bne	L0b4b
+	jsr	dS0b0a
+dL0b25:	lda	dD0d28
+	jsr	dS0b6b
+	sta	dD0d28
+	lda	dD0d27
+	jsr	dS0b6b
+	sta	dD0d27
+	jsr	dS0d13
+	inc	dD0d28
+	bne	dL0b4b
+	inc	dD0d27
+	bne	dL0b4b
+	inc	dD0d26
+	bne	dL0b4b
 	clc
 	rts
 
-L0b4b:	jsr	S0ae4
-	lda	Dbffb,X
-	lda	Dbffa,X
-	eor	D0d26
-	bne	L0b69
-	lda	Dbff9,X
-	cmp	D0d27
-	bne	L0b69
-	lda	Dbff8,X
-	cmp	D0d28
-	beq	L0b25
-L0b69:	sec
+dL0b4b:	jsr	dS0ae4
+	lda	Dbffb,x
+	lda	Dbffa,x
+	eor	dD0d26
+	bne	dL0b69
+	lda	Dbff9,x
+	cmp	dD0d27
+	bne	dL0b69
+	lda	Dbff8,x
+	cmp	dD0d28
+	beq	dL0b25
+dL0b69:	sec
 	rts
 
-S0b6b:	cmp	#$10
-	bcc	L0b75
+dS0b6b:	cmp	#$10
+	bcc	dL0b75
 	cmp	#$70
-	bcs	L0b76
+	bcs	dL0b76
 	lda	#$70
-L0b75:	rts
+dL0b75:	rts
 
-L0b76:	cmp	#$90
-	bcc	L0b75
+dL0b76:	cmp	#$90
+	bcc	dL0b75
 	cmp	#$f0
-	bcs	L0b75
+	bcs	dL0b75
 	lda	#$f0
 	rts
 
-L0b81:	lda	D0d2a
-	beq	L0b94
+dL0b81:	lda	dD0d2a
+	beq	dL0b94
 	lda	#$00
-	sta	D0d30
-	jsr	S0b96
-	jsr	S0b96
-	jsr	S0b96
-L0b94:	clc
+	sta	dD0d30
+	jsr	dS0b96
+	jsr	dS0b96
+	jsr	dS0b96
+dL0b94:	clc
 	rts
 
-S0b96:	jsr	Sca8e
+dS0b96:	jsr	Sca8e
 	tay
-L0b9a:	tya
-	sta	Dbffb,X
-	jsr	S0bbe
-	bne	L0b9a
-	jsr	S0ae4
+dL0b9a:	tya
+	sta	Dbffb,x
+	jsr	dS0bbe
+	bne	dL0b9a
+	jsr	dS0ae4
 	tya
-	jsr	S0d0a
-L0baa:	tya
-	cmp	Dbffb,X
-	bne	L0bba
-	jsr	S0bbe
-	bne	L0baa
+	jsr	dS0b0a
+dL0baa:	tya
+	cmp	Dbffb,x
+	bne	dL0bba
+	jsr	dS0bbe
+	bne	dL0baa
 	sec
-	ror	D0d30
+	ror	dD0d30
 	rts
 
-L0bba:	pla
+dL0bba:	pla
 	pla
 	sec
 	rts
 
-S0bbe:	bit	D0d30
-	bpl	L0bdb
-	inc	D0d26
-	inc	Dbffa,X
-	lda	D0d26
+dS0bbe:	bit	dD0d30
+	bpl	dL0bdb
+	inc	dD0d26
+	inc	Dbffa,x
+	lda	dD0d26
 	lsr
-	cmp	D0d2a
-	bcc	L0bdb
+	cmp	dD0d2a
+	bcc	dL0bdb
 	ldy	#$00
 	rts
 
 	fcb	$ee,$27,$0d,$fe,$f9,$bf
 
-L0bdb:	inc	D0d28
+dL0bdb:	inc	dD0d28
 	iny
 	rts
 
-D0be0:	fcb	$00,$55,$aa,$ff
+dD0be0:	fcb	$00,$55,$aa,$ff
 
-L0be4:	lda	D0d2a
-	beq	L0bfc
+dL0be4:	lda	dD0d2a
+	beq	dL0bfc
 	ldy	#$03
-L0beb:	lda	D0be0,Y
-	sta	D0d2c
-	jsr	S0bfe
-	jsr	S0c2e
-	bcs	L0bfd
+dL0beb:	lda	dD0be0,y
+	sta	dD0d2c
+	jsr	dS0bfe
+	jsr	dS0c2e
+	bcs	dL0bfd
 	dey
-	bpl	L0beb
-L0bfc:	clc
-L0bfd:	rts
+	bpl	dL0beb
+dL0bfc:	clc
+dL0bfd:	rts
 
-S0bfe:	jsr	S0c6d
-L0c01:	jsr	S0c0a
-	dec	D0d2d
-	bne	L0c01
+dS0bfe:	jsr	dS0c6d
+dL0c01:	jsr	dS0c0a
+	dec	dD0d2d
+	bne	dL0c01
 	rts
 
-S0c0a:	tya
+dS0c0a:	tya
 	pha
-	lda	D0d2c
+	lda	dD0d2c
 	ldy	#$00
-	sty	D0d2e
-L0c14:	sta	Dbffb,X
-	sta	Dbffb,X
-	sta	Dbffb,X
-	sta	Dbffb,X
+	sty	dD0d2e
+dL0c14:	sta	Dbffb,x
+	sta	Dbffb,x
+	sta	Dbffb,x
+	sta	Dbffb,x
 	iny
-	bne	L0c14
-	jsr	S0ae4
-	inc	D0d2e
-	bne	L0c14
+	bne	dL0c14
+	jsr	dS0ae4
+	inc	dD0d2e
+	bne	dL0c14
 	pla
 	tay
 	rts
 
-S0c2e:	jsr	S0c6d
-L0c31:	jsr	S0c3c
-	bcs	L0c3b
-	dec	D0d2d
-	bne	L0c31
-L0c3b:	rts
+dS0c2e:	jsr	dS0c6d
+dL0c31:	jsr	dS0c3c
+	bcs	dL0c3b
+	dec	dD0d2d
+	bne	dL0c31
+dL0c3b:	rts
 
-S0c3c:	tya
+dS0c3c:	tya
 	pha
-	lda	D0d2c
+	lda	dD0d2c
 	ldy	#$00
-	sty	D0d2e
-L0c46:	cmp	Dbffb,X
-	bne	L0c69
-	cmp	Dbffb,X
-	bne	L0c69
-	cmp	Dbffb,X
-	bne	L0c69
-	cmp	Dbffb,X
-	bne	L0c69
+	sty	dD0d2e
+dL0c46:	cmp	Dbffb,x
+	bne	dL0c69
+	cmp	Dbffb,x
+	bne	dL0c69
+	cmp	Dbffb,x
+	bne	dL0c69
+	cmp	Dbffb,x
+	bne	dL0c69
 	iny
-	bne	L0c46
-	jsr	S0ae4
-	inc	D0d2e
-	bne	L0c46
+	bne	dL0c46
+	jsr	dS0ae4
+	inc	dD0d2e
+	bne	dL0c46
 	pla
 	tay
 	clc
 	rts
 
-L0c69:	tay
+dL0c69:	tay
 	pla
 	sec
 	rts
 
-S0c6d:	lda	D0d2a
+dS0c6d:	lda	dD0d2a
 	lsr
-	sta	D0d2d
+	sta	dD0d2d
 	jmp	Sca8e
 
 
 ; d_msgout decompresses and outputs a message
 ; Y indexes d_msgtab, carry alternates 0 = high nibble, 1 = low nibble
 
-L0c77:	php
+dL0c77:	php
 	jsr	cout
 	plp
 	skip1
@@ -1800,20 +1800,20 @@ d_msgout:
 	clc		; start with high nibble
 
 	jsr	d_getnib		; get nibble
-	lda	d_msg_dec_tab_1,X			; index first table
-	bne	L0c77			; if table content non-zero, it's a char
+	lda	d_msg_dec_tab_1,x			; index first table
+	bne	dL0c77			; if table content non-zero, it's a char
 
 	jsr	d_getnib		; get nibble
-	lda	d_msg_dec_tab_2,X	; index second table
-	bne	L0c77			; if table content non-zero, it's a char
+	lda	d_msg_dec_tab_2,x	; index second table
+	bne	dL0c77			; if table content non-zero, it's a char
 
 	rts		; if both table entries were zero, end of message
 
 
 ; get one nibble
 d_getnib:
-	lda	d_msgtab,Y	; get byte from message table
-	bcs	L0c9b	; carry clear?
+	lda	d_msgtab,y	; get byte from message table
+	bcs	dL0c9b	; carry clear?
 	lsr		; yes, get high nibble
 	lsr
 	lsr
@@ -1823,7 +1823,7 @@ d_getnib:
 	rts
 
 ; carry was set, 
-L0c9b:	iny		; advance pointer
+dL0c9b:	iny		; advance pointer
 	and	#$0f
 	tax
 	clc		; clear carry so next call will get high nibble
@@ -1874,29 +1874,29 @@ d_msg_idx_address	equ	*-d_msgtab
 	encode	"   ADDRESS: "
 
 
-S0d0a:	sta	D0d28
-	sta	D0d27
-	sty	D0d26
+dS0b0a:	sta	dD0d28
+	sta	dD0d27
+	sty	dD0d26
 
-S0d13:	lda	D0d28
-	sta	Dbff8,X
-	lda	D0d27
-	sta	Dbff9,X
-	lda	D0d26
-	sta	Dbffa,X
+dS0d13:	lda	dD0d28
+	sta	Dbff8,x
+	lda	dD0d27
+	sta	Dbff9,x
+	lda	dD0d26
+	sta	Dbffa,x
 	rts
 
-D0d26:	equ	*
-D0d27:	equ	*+1
-D0d28:	equ	*+2
-D0d29:	equ	*+3
-D0d2a:	equ	*+4
-D0d2b:	equ	*+5
-D0d2c:	equ	*+6
-D0d2d:	equ	*+7
-D0d2e:	equ	*+8
-D0d2f:	equ	*+9
-D0d30:	equ	*+10
+dD0d26:	equ	*
+dD0d27:	equ	*+1
+dD0d28:	equ	*+2
+dD0d29:	equ	*+3
+dD0d2a:	equ	*+4
+dD0d2b:	equ	*+5
+dD0d2c:	equ	*+6
+dD0d2d:	equ	*+7
+dD0d2e:	equ	*+8
+dD0d2f:	equ	*+9
+dD0d30:	equ	*+10
 
 	dephase
 	endsection diag
@@ -1906,7 +1906,7 @@ b1_diag_end	equ	*-$1000
 b1_partmgr	equ	*-$1000
 
 	section partmgr
-	phase	$0a00
+	phase	ram_application_base
 
 Z24	equ	$24
 Z25	equ	$25
@@ -1948,21 +1948,21 @@ cout	equ	$fded
 
 partmgr:
 	jsr	Sca8b
-	lda	Dbffb,X
+	lda	Dbffb,x
 	cmp	#$ae
-	bne	L0a1b
-	eor	Dbffb,X
+	bne	pL0a1b
+	eor	Dbffb,x
 	cmp	#$5a
-	bne	L0a1b
-	lda	Dbffb,X
-	eor	Dbffb,X
+	bne	pL0a1b
+	lda	Dbffb,x
+	eor	Dbffb,x
 	cmp	#$5a
-	beq	L0a6b
-L0a1b:	ldy	mslot
-	lda	shs_os_code,Y
-	eor	shs_os_check,Y
+	beq	pL0a6b
+pL0a1b:	ldy	mslot
+	lda	shs_os_code,y
+	eor	shs_os_check,y
 	cmp	#$5a
-	bne	L0a3f
+	bne	pL0a3f
 	jsr	home
 	ldy	#p_msg_idx_warning_installing
 	jsr	p_msgout
@@ -1970,35 +1970,35 @@ L0a1b:	ldy	mslot
 	jsr	cout
 	jsr	rdkey_uc
 	cmp	#'Y'+$80
-	beq	L0a3f
-	jmp	L0e06
+	beq	pL0a3f
+	jmp	pL0e06
 
-L0a3f:	jsr	Sca8b
+pL0a3f:	jsr	Sca8b
 	ldy	#$aa
 	jsr	Scdfb
 	jsr	Sca8b
 	lda	#$04
-	sta	Dbff8,X
+	sta	Dbff8,x
 	ldy	mslot
-	lda	shs_card_block_count,Y
+	lda	shs_card_block_count,y
 	pha
-	sta	Dbffb,X
+	sta	Dbffb,x
 	lda	#$0a
-	sta	Dbff8,X
+	sta	Dbff8,x
 	pla
 	asl
 	sec
 	sbc	#$01
-	sta	Dbffb,X
+	sta	Dbffb,x
 	lda	#$fc
-	sta	Dbffb,X
-L0a6b:	jsr	Sca8e
+	sta	Dbffb,x
+pL0a6b:	jsr	Sca8e
 	jsr	Scaeb
 	lda	D0802
 	sta	D0901
 	jsr	home
-L0a7a:	lsr	D0900
-L0a7d:	lda	#$00
+pL0a7a:	lsr	D0900
+pL0a7d:	lda	#$00
 	sta	Z24
 	sta	Z25
 	ldy	#p_msg_idx_heading
@@ -2009,55 +2009,55 @@ L0a7d:	lda	#$00
 	jsr	crout
 	jsr	crout
 	ldy	#$00
-L0a98:	jsr	S0c03
+pL0a98:	jsr	pS0c03
 	iny
 	cpy	#$09
-	bcc	L0a98
+	bcc	pL0a98
 	ldy	#p_msg_idx_help_1
 	jsr	p_msgout
 	ldy	#$59
 	bit	D0900
-	bpl	L0aae
+	bpl	pL0aee
 	ldy	#p_msg_idx_help_2
-L0aae:	jsr	p_msgout
+pL0aee:	jsr	p_msgout
 	jsr	clreop
 
 	jsr	rdkey_uc
 	cmp	#'1'+$80
-	bcc	L0acf		; not a digit
+	bcc	pL0acf		; not a digit
 	cmp	#'9'+1+$80
-	bcs	L0acf		; not a digit
+	bcs	pL0acf		; not a digit
 
 	sbc	#$b0		; ASCII to binary digit
-	jsr	S0c81
+	jsr	pS0c81
 	sta	D0901
 	bit	D0900
-	bmi	L0a7d
-	jmp	L0df6
+	bmi	pL0a7d
+	jmp	pL0df6
 
-L0acf:	sta	D0902
+pL0acf:	sta	D0902
 	ldy	#$06
 	bit	D0900
-	bpl	L0adb
+	bpl	pL0adb
 	ldy	#$fd	; 253 }
-L0adb:	iny
+pL0adb:	iny
 	iny
 	iny
-	lda	D0af7,Y
-	beq	L0af1
+	lda	pD0af7,y
+	beq	pL0af1
 	cmp	D0902
-	bne	L0adb
-	lda	D0af7+2,Y
+	bne	pL0adb
+	lda	pD0af7+2,y
 	pha
-	lda	D0af7+1,Y
+	lda	pD0af7+1,y
 	pha
 	rts
 
-L0af1:	jsr	bell12
-	jmp	L0a7d
+pL0af1:	jsr	bell12
+	jmp	pL0a7d
 
 
-D0af7:	cmd_ent	'N',p_cmd_name
+pD0af7:	cmd_ent	'N',p_cmd_name
 	cmd_ent	'C',p_cmd_clear		; Clear a partition
 	cmd_ent	'S',p_cmd_size		; change Size of a partition
 	cmd_ent ch_cr,p_cmd_boot	; boot partition
@@ -2072,83 +2072,83 @@ D0af7:	cmd_ent	'N',p_cmd_name
 
 p_cmd_boot:
 	bit	D0900
-	bmi	L0b1e
-	jmp	L0df6
+	bmi	pL0b1e
+	jmp	pL0df6
 
-L0b1e:	jsr	S0de8
-	jmp	L0a7a
+pL0b1e:	jsr	pS0de8
+	jmp	pL0a7a
 
 p_cmd_reconfigure:
 	sec
 	ror	D0900
-	jmp	L0a7d
+	jmp	pL0a7d
 
 p_cmd_exit:
 	bit	D0900
-	bpl	L0b33
-	jmp	L0a00
+	bpl	pL0b33
+	jmp	ram_application_base
 
-L0b33:	jsr	S0dd7
-	jmp	L0e36
+pL0b33:	jsr	pS0dd7
+	jmp	pL0e36
 
 p_cmd_up:
 	lda	D0901
 	sec
 	sbc	#$18
-L0b3f:	cmp	#$e0
+pL0b3f:	cmp	#$e0
 	bcs	L0b46
 	sta	D0901
-L0b46:	jmp	L0a7d
+L0b46:	jmp	pL0a7d
 
 p_cmd_down:
 	lda	D0901
 	clc
 	adc	#$18
-	bcc	L0b3f
+	bcc	pL0b3f
 
 p_cmd_name:
 	ldy	#p_msg_idx_new_name
 	jsr	p_msgout
 	ldx	#$10
-	jsr	S0e4f
-	bcs	L0b6e
+	jsr	pS0e4f
+	bcs	pL0b6e
 	ldx	#$00
 	ldy	D0901
-L0b62:	lda	D0908,X
-	sta	D0808,Y
+pL0b62:	lda	D0908,x
+	sta	D0808,y
 	iny
 	inx
 	cpx	#$10
-	bcc	L0b62
-L0b6e:	jmp	L0a7d
+	bcc	pL0b62
+pL0b6e:	jmp	pL0a7d
 
 p_cmd_size:
-	jsr	S0e43
-	beq	L0bea
+	jsr	pS0e43
+	beq	pL0bea
 	tya
 	clc
 	adc	#$18
 	tay
 	cpy	#$e0
-	bcs	L0bea
-	jsr	S0e46
-	beq	L0bea
+	bcs	pL0bea
+	jsr	pS0e46
+	beq	pL0bea
 	ldy	#p_msg_idx_new_size
 	jsr	p_msgout
 	ldx	#$06
-	jsr	S0e4f
-	jsr	S0ea1
+	jsr	pS0e4f
+	jsr	pS0ea1
 	asl	D0904
 	rol	D0905
 	asl	D0904
 	rol	D0905
 	clc
 	ldy	D0901
-	lda	D0803,Y
-	adc	D081b,Y
+	lda	D0803,y
+	adc	D081b,y
 	sta	D0906
-	lda	D0802,Y
-	adc	D081a,Y
+	lda	D0802,y
+	adc	D081a,y
 	sta	D0907
 	sec
 	lda	D0906
@@ -2156,45 +2156,45 @@ p_cmd_size:
 	pha
 	lda	D0907
 	sbc	D0905
-	bcc	L0be6
-	sta	D081a,Y
+	bcc	pL0be6
+	sta	D081a,y
 	pla
-	sta	D081b,Y
+	sta	D081b,y
 	clc
 	lda	D0904
-	sta	D0803,Y
-	adc	D0801,Y
-	sta	D0819,Y
+	sta	D0803,y
+	adc	D0801,y
+	sta	D0819,y
 	lda	D0905
-	sta	D0802,Y
-	adc	D0800,Y
-	sta	D0818,Y
-	jmp	L0a7d
+	sta	D0802,y
+	adc	D0800,y
+	sta	D0818,y
+	jmp	pL0a7d
 
-L0be6:	pla
+pL0be6:	pla
 	ldy	#$d5
 	skip2
-L0bea:	ldy	#$c9
+pL0bea:	ldy	#$c9
 	jsr	p_msgout
 	jsr	rdkey
-	jmp	L0a7d
+	jmp	pL0a7d
 
 p_cmd_clear:
-	jsr	S0e43
-	bne	L0c00
+	jsr	pS0e43
+	bne	pL0c00
 	ldx	D0901
-	inc	D0805,X
-L0c00:	jmp	L0a7d
+	inc	D0805,x
+pL0c00:	jmp	pL0a7d
 
-S0c03:	tya
+pS0c03:	tya
 	pha
-	jsr	S0c81
+	jsr	pS0c81
 	pha
 	ldx	#$ff
 	cmp	D0901
-	bne	L0c12
+	bne	pL0c12
 	ldx	#$3f
-L0c12:	stx	Z32
+pL0c12:	stx	Z32
 	jsr	print_two_spaces
 	tya
 	clc
@@ -2205,20 +2205,20 @@ L0c12:	stx	Z32
 	pha
 	tay
 	ldx	#$10
-L0c26:	lda	D0808,Y
-	bne	L0c2d
+pL0c26:	lda	D0808,y
+	bne	pL0c2d
 	lda	#' '+$80
-L0c2d:	jsr	cout
+pL0c2d:	jsr	cout
 	iny
 	dex
-	bne	L0c26
+	bne	pL0c26
 	jsr	print_two_spaces
 	pla
 	pha
 	tay
-	lda	D0802,Y
+	lda	D0802,y
 	sta	Z3f
-	lda	D0803,Y
+	lda	D0803,y
 	sta	Z3e
 	jsr	Scb9b
 	lda	#$ff
@@ -2226,26 +2226,26 @@ L0c2d:	jsr	cout
 	jsr	print_two_spaces
 	pla
 	tay
-	lda	D0805,Y
+	lda	D0805,y
 	eor	#$5a
-	cmp	D0804,Y
-	beq	L0c5c
+	cmp	D0804,y
+	beq	pL0c5c
 	lda	#$01
-L0c5c:	ldy	#$04
-L0c5e:	cmp	D0c6f,Y
-	beq	L0c66
+pL0c5c:	ldy	#$04
+pL0c5e:	cmp	pD0c70-1,y
+	beq	pL0c66
 	dey
-	bne	L0c5e
-L0c66:	lda	D0c74,Y
+	bne	pL0c5e
+pL0c66:	lda	pD0c74,y
 	tay
 	jsr	p_msgout
 	pla
 	tay
-D0c6f:	rts
+	rts
 
-	fcb	$4c,$00,$33,$cd
+pD0c70:	fcb	$4c,$00,$33,$cd
 
-D0c74:	fcb	p_msg_idx_clear
+pD0c74:	fcb	p_msg_idx_clear
 	fcb	p_msg_idx_prodos
 	fcb	p_msg_idx_pascal
 	fcb	p_msg_idx_dos
@@ -2258,7 +2258,7 @@ print_two_spaces:
 	jmp	cout
 
 
-S0c81:	sta	D0902
+pS0c81:	sta	D0902
 	asl
 	adc	D0902
 	asl
@@ -2271,31 +2271,31 @@ S0c81:	sta	D0902
 ; Y indexes p_msgtab, carry alternates 0 = high nibble, 1 = low nibble
 p_msgout:
 	clc
-L0c8f:	jsr	p_getnib	; get nibble
-	lda	D0cbe,X		; index first table
-	bne	L0ca0		; if table content non-zero, it's a char
+pL0c8f:	jsr	p_getnib	; get nibble
+	lda	pD0cbe,x		; index first table
+	bne	pL0ca0		; if table content non-zero, it's a char
 
 	jsr	p_getnib	; it was zero, get next nibble
-	lda	D0ccd,X		; index second table
-	bne	L0ca0		; if table content non-zero, it's a char
+	lda	pD0ccd,x		; index second table
+	bne	pL0ca0		; if table content non-zero, it's a char
 
 	rts		; if both table entries were zero, end of message
 
 
 ; output a decoded character, except if MSB is zero, output two spaces
-L0ca0:	php
-	bmi	L0ca6
+pL0ca0:	php
+	bmi	pL0ca6
 	jsr	print_two_spaces
 
-L0ca6:	jsr	cout
+pL0ca6:	jsr	cout
 	plp
-	bne	L0c8f
+	bne	pL0c8f
 
 
 ; get one nibble
 p_getnib:
-	lda	p_msgtab,Y	; get byte from message table
-	bcs	L0cb8	; carry clear?
+	lda	p_msgtab,y	; get byte from message table
+	bcs	pL0cb8	; carry clear?
 	lsr		; yes, get high nibble
 	lsr
 	lsr
@@ -2305,7 +2305,7 @@ p_getnib:
 	rts
 
 ; carry was set, getting low nibble
-L0cb8:	iny		; advance pointer
+pL0cb8:	iny		; advance pointer
 	and	#$0f
 	tax
 	clc		; clear carry so next call will get high nibble
@@ -2316,13 +2316,13 @@ L0cb8:	iny		; advance pointer
 ; table includes all but one of the letters ETAOINSHRDLC, the 13
 ; most common letters of the English language, in an arbitrary
 ; permutation that might be intended to confuse reverse-engineers.
-D0cbe:	fcb	$00		; escape to second table
+pD0cbe:	fcb	$00		; escape to second table
 	fcb	ch_cr+$80	; carriage return
 	fcb	$01		; two spaces
 	fcsm	"GLITCH REASO"
 
 ; nibble to character decode table 2
-D0ccd:	fcsm	"N"
+pD0ccd:	fcsm	"N"
 	fcb	$00		; end of message
 	fcsm	"FPUDM-19=BQWZY"
 
@@ -2388,131 +2388,131 @@ p_msg_idx_pascal	equ	*-p_msgtab
 	encode	"PASCAL\x0d"
 
 
-S0dd7:	lda	D0901
+pS0dd7:	lda	D0901
 	sta	D0802
 	eor	#$5a
 	sta	D0803
-	jsr	S0de8
+	jsr	pS0de8
 	jmp	Lc9df
 
-S0de8:	jsr	Sca8b
+pS0de8:	jsr	Sca8b
 	tay
-L0dec:	lda	D0800,Y
-	sta	Dbffb,X
+pL0dec:	lda	D0800,y
+	sta	Dbffb,x
 	iny
-	bne	L0dec
+	bne	pL0dec
 	rts
 
-L0df6:	jsr	S0dd7
-	jsr	S0e43
-	bne	L0e09
-	lda	D0802,Y
-	ora	D0803,Y
-	beq	L0e09
-L0e06:	jsr	S0e27
-L0e09:	ldy	#p_msg_idx_cannot_boot
+pL0df6:	jsr	pS0dd7
+	jsr	pS0e43
+	bne	pL0e09
+	lda	D0802,y
+	ora	D0803,y
+	beq	pL0e09
+pL0e06:	jsr	pS0e27
+pL0e09:	ldy	#p_msg_idx_cannot_boot
 	jsr	p_msgout
-L0e0e:	ldx	#$01
-	jsr	S0e4f
-	bcs	L0e36
+pL0e0e:	ldx	#$01
+	jsr	pS0e4f
+	bcs	pL0e36
 	lda	D0908
 	cmp	#$b1
-	bcc	L0e0e
+	bcc	pL0e0e
 	cmp	#$b8
-	bcs	L0e0e
+	bcs	pL0e0e
 	adc	#$10
 	tay
 	lda	#$00
-	beq	L0e2f
+	beq	pL0e2f
 
-S0e27:	ldx	shg_0778
+pS0e27:	ldx	shg_0778
 	ldy	mslot
 	lda	#$7b
-L0e2f:	sty	L00+1
+pL0e2f:	sty	L00+1
 	sta	L00
 	jmp	(L00)
 
-L0e36:	ldx	#$02
+pL0e36:	ldx	#$02
 	lda	#$00
-L0e3a:	sta	D0800,X
+pL0e3a:	sta	D0800,x
 	dex
-	bpl	L0e3a
+	bpl	pL0e3a
 	jmp	(resetvec)
 
-S0e43:	ldy	D0901
-S0e46:	lda	D0804,Y
-	eor	D0805,Y
+pS0e43:	ldy	D0901
+pS0e46:	lda	D0804,y
+	eor	D0805,y
 	cmp	#$5a
 	rts
 
-S0e4f:	stx	D0903
+pS0e4f:	stx	D0903
 	lda	#$a0
-L0e54:	sta	D0908,X
+pL0e54:	sta	D0908,x
 	dex
-	bpl	L0e54
+	bpl	pL0e54
 	inx
-L0e5b:	jsr	rdkey_uc
+pL0e5b:	jsr	rdkey_uc
 	cmp	#$88
-	beq	L0e84
+	beq	pL0e84
 	cmp	#ch_cr+$80
-	beq	L0e82
+	beq	pL0e82
 	cmp	#ch_esc+$80
-	beq	L0e83
+	beq	pL0e83
 	cmp	#' '+$80
-	bcs	L0e74
-L0e6e:	jsr	bell12
-	jmp	L0e5b
+	bcs	pL0e74
+pL0e6e:	jsr	bell12
+	jmp	pL0e5b
 
-L0e74:	cpx	D0903
-	bcs	L0e6e
-	sta	D0908,X
+pL0e74:	cpx	D0903
+	bcs	pL0e6e
+	sta	D0908,x
 	jsr	cout
 	inx
-	bne	L0e5b
-L0e82:	clc
-L0e83:	rts
+	bne	pL0e5b
+pL0e82:	clc
+pL0e83:	rts
 
-L0e84:	txa
-	beq	L0e5b
+pL0e84:	txa
+	beq	pL0e5b
 	dex
 	dec	Z24
 	lda	#$a0
-	sta	D0908,X
+	sta	D0908,x
 	jsr	cout
 	dec	Z24
-	jmp	L0e5b
+	jmp	pL0e5b
 
 rdkey_uc:
 	jsr	rdkey
 	cmp	#$e0	; lower case?
-	bcc	L0ea0	;   no
+	bcc	pL0ea0	;   no
 	and	#$df	;   yes, convert to upper case
-L0ea0:	rts
+pL0ea0:	rts
 
-S0ea1:	lda	#$00
+pS0ea1:	lda	#$00
 	tay
 	tax
-L0ea5:	sta	D0904
+pL0ea5:	sta	D0904
 	stx	D0905
 	lda	#$0a
 	sta	D0902
 	ldx	#$00
-	lda	D0908,Y
+	lda	D0908,y
 	eor	#$b0
 	cmp	#$0a
-	bcc	L0ebc
+	bcc	pL0ebc
 	rts
 
-L0ebc:	adc	D0904
+pL0ebc:	adc	D0904
 	pha
 	txa
 	adc	D0905
 	tax
 	pla
 	dec	D0902
-	bne	L0ebc
+	bne	pL0ebc
 	iny
-	bne	L0ea5
+	bne	pL0ea5
 
 	dephase
 	endsection partmgr
