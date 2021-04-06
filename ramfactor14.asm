@@ -152,12 +152,14 @@ D0200	equ	$0200
 D0400	equ	$0400
 
 ; screen holes, global (not indexed)
+; mslot appears to be the only global screen hole for which Apple
+; has defined a function.
 shg_0478	equ	$0478
 shg_04f8	equ	$04f8
 shg_0578	equ	$0578
 shg_05f8	equ	$05f8
 shg_0778	equ	$0778
-mslot	equ	$07f8
+mslot		equ	$07f8
 
 ; screen holes, indexed by $Cn, where n is slot number (1 through 7)
 shs_card_block_count	equ	$0478-$c0	; # blocks of whole card, divided by 256
@@ -427,11 +429,13 @@ Lcnf2:	pla
 	endm	; irp slotnum,...
 	endm	; irp banknum,...
 
+	section	common
 
 ; C800 shared ROM code
 
 	org	$c800
 
+	public	protocol_converter	; referenced from slot
 protocol_converter:
 	jsr	Scd99
 
@@ -705,6 +709,7 @@ Dc9c6:	fcb	$f8,$00,$00,$00
 	
 	fcb	$00,$00,$00,$00
 
+	public	Lc9df	; referenced by slot, partmgr
 Lc9df:	ldy	mslot
 	jsr	Sca8e
 	lda	Dbffb,X
@@ -774,14 +779,17 @@ Lca73:	lda	shs_card_block_count,Y
 	sta	shs_idx_part_data,Y
 	rts
 
+	public	Sca8b	; referenced from diag, pmgr
 Sca8b:	ldx	shg_0778
 
+	public	Sca8e	; referenced from diag, pmgr
 Sca8e:	lda	#$00
 	sta	Dbff8,X
 	sta	Dbff9,X
 	sta	Dbffa,X
 	rts
 
+	public	Sca9a	; referenced from slot
 Sca9a:	jsr	Sca8e
 
 Sca9d:	ldy	mslot
@@ -821,6 +829,7 @@ Lcacd:	lda	Dbff9,X
 	sta	Dbffa,X
 	rts
 
+	public	Scaeb	; referenced from slot, pmgr
 Scaeb:	ldy	#$00
 Lcaed:	lda	Dbffb,X
 	sta	D0800,Y
@@ -832,6 +841,7 @@ Lcaf6:	lda	Dbffb,X
 	bne	Lcaf6
 	rts
 
+	public	Scb00	; referenced from diag
 Scb00:	jsr	Sca8b
 	tay
 	cmp	Dbffa,X
@@ -904,6 +914,7 @@ Lcb83:	dec	Dbff8,X
 Dcb95:	fcb	$0c,$30,$c0
 Dcb98:	fcb	$04,$10,$40
 
+	public	Scb9b	; referenced from diag, pmgr
 Scb9b:	ldx	#$04
 	ldy	#$00
 Lcb9f:	lda	#$00
@@ -945,6 +956,7 @@ Dcbde:	fcb	$04,$28,$90,$a0,$40
 
 Dcbe3:	fcb	$00,$00,$01,$0f,$9c
 
+	public	prodos	; reference from slot
 prodos:
 	ldy	Z42
 	iny
@@ -1021,6 +1033,7 @@ Scc58:	lda	#$00
 	jsr	Sca9d
 Lcc6e:	rts
 
+	public	Lcc6f	; referenced from slot
 Lcc6f:	jsr	Scd56
 	ldy	#$10
 	bcs	Lcce0
@@ -1216,6 +1229,7 @@ Lcde2:	lda	shs_os_code,Y
 	clc
 	rts
 
+	public	Scdec	; referenced from slot
 Scdec:	lda	proflag
 	beq	Lcdf3
 	cmp	#$4c
@@ -1225,6 +1239,7 @@ Lcdf4:	ldx	shg_0778
 	jsr	Sce67
 	iny
 
+	public	Scdfb	; referenced from pmgr
 Scdfb:	lda	Dcf30,Y
 	bne	Lcdf4
 	rts
@@ -1444,6 +1459,9 @@ Scfe4:	lda	shs_cur_part_size_high,Y
 	rts
 
 	fillto	$d000,$ff
+
+	endsection	common
+
 
 ; bank 1 common space ($c800-$cfff)
 	org	$d800
@@ -1920,13 +1938,6 @@ D0908	equ	$0908
 
 Dbff8	equ	$bff8
 Dbffb	equ	$bffb
-
-Lc9df	equ	$c9df
-Sca8b	equ	$ca8b
-Sca8e	equ	$ca8e
-Scaeb	equ	$caeb
-Scb9b	equ	$cb9b
-Scdfb	equ	$cdfb
 
 bell12	equ	$fbe2
 clreop	equ	$fc42
