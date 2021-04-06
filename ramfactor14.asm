@@ -38,6 +38,14 @@ skip2	macro
 	endm
 
 
+; macro for command table, used in partition manager
+
+cmd_ent	macro	char,addr
+	fcb	char+$80
+	fdb	addr-1	; -1 because RTS will do the jump
+	endm
+
+
 ; macros to handle the text compression
 
 enc_nib	macro	nibval
@@ -1447,7 +1455,7 @@ D0400	equ	$0400
 	
 diag:	stx	D0d2b
 	jsr	home
-	ldy	#d_msg_idx_00
+	ldy	#d_msg_idx_banner
 	jsr	d_msgout
 	jsr	Scb00
 	sta	D0d2a
@@ -1460,7 +1468,7 @@ diag:	stx	D0d2b
 L0a1b:	sty	Z3e
 	sta	Z3f
 	jsr	Scb9b
-	ldy	#d_msg_idx_21
+	ldy	#d_msg_idx_bytes
 	jsr	d_msgout
 	jsr	Sca8b
 	sta	Dbffb,X
@@ -1472,11 +1480,11 @@ L0a1b:	sty	Z3e
 	sta	D0778-$c0,Y
 L0a3d:	lda	#$00
 	sta	Z24
-	ldy	#d_msg_idx_27
+	ldy	#d_msg_idx_pass
 	jsr	d_msgout
 	lda	D0d2f
 	jsr	prbyte
-	ldy	#d_msg_idx_2c
+	ldy	#d_msg_idx_testing
 	jsr	d_msgout
 	lda	Z24
 	clc
@@ -1502,7 +1510,7 @@ L0a62:	dey
 
 L0a80:	tya
 	pha
-	ldy	#d_msg_idx_35
+	ldy	#d_msg_idx_card_failure
 	jsr	d_msgout
 	lda	#$08
 	sec
@@ -1516,7 +1524,7 @@ L0a80:	tya
 	pla
 	rts
 
-L0a9a:	ldy	#d_msg_idx_42
+L0a9a:	ldy	#d_msg_idx_address
 	jsr	d_msgout
 	ldx	D0778
 	lda	Dbff8,X
@@ -1825,24 +1833,24 @@ tbl2	set	"N\xffBCFHPYZMQUV14:"
 
 ; compressed message table
 d_msgtab:
-d_msg_idx_00	equ	*-d_msgtab
+d_msg_idx_banner	equ	*-d_msgtab
 	encode	"APPLIED ENGINEERING RAMFACTOR TEST V1.4\x0d\x0dMEMORY SIZE: "
 
-d_msg_idx_21	equ	*-d_msgtab
+d_msg_idx_bytes	equ	*-d_msgtab
 	encode	" BYTES\x0d\x0d"
 
-d_msg_idx_27	equ	*-d_msgtab
+d_msg_idx_pass	equ	*-d_msgtab
 	encode	"PASS: "
 
-d_msg_idx_2c	equ	*-d_msgtab
+d_msg_idx_testing	equ	*-d_msgtab
 	encode	"    TESTING ..."
 
-d_msg_idx_35	equ	*-d_msgtab
+d_msg_idx_card_failure	equ	*-d_msgtab
 	encode	"\x0d\x0dCARD FAILURE. ID: "
 
-d_msg_idx_42	equ	*-d_msgtab
+d_msg_idx_address	equ	*-d_msgtab
 	encode	"   ADDRESS: "
-;	fcb	$99,$93,$dd,$2e,$88,$0f,$90,$19
+
 
 S0d0a:	sta	D0d28
 	sta	D0d27
@@ -1947,7 +1955,7 @@ L0a1b:	ldy	D07f8
 	cmp	#$5a
 	bne	L0a3f
 	jsr	home
-	ldy	#p_msg_idx_88
+	ldy	#p_msg_idx_warning_installing
 	jsr	p_msgout
 	lda	#'?'+$80
 	jsr	cout
@@ -1984,7 +1992,7 @@ L0a7a:	lsr	D0900
 L0a7d:	lda	#$00
 	sta	Z24
 	sta	Z25
-	ldy	#p_msg_idx_00
+	ldy	#p_msg_idx_heading
 	jsr	p_msgout
 	lda	D07f8
 	eor	#$70
@@ -1996,12 +2004,12 @@ L0a98:	jsr	S0c03
 	iny
 	cpy	#$09
 	bcc	L0a98
-	ldy	#p_msg_idx_14
+	ldy	#p_msg_idx_help_1
 	jsr	p_msgout
 	ldy	#$59
 	bit	D0900
 	bpl	L0aae
-	ldy	#p_msg_idx_27
+	ldy	#p_msg_idx_help_2
 L0aae:	jsr	p_msgout
 	jsr	clreop
 
@@ -2039,37 +2047,19 @@ L0adb:	iny
 L0af1:	jsr	bell12
 	jmp	L0a7d
 
-D0af7:	fcb	'N'+$80		; Name a partition
-	fdb	p_cmd_name-1
-	
-	fcb	'C'+$80		; Clear a partition
-	fdb	p_cmd_clear-1
-	
-	fcb	'S'+$80		; change Size of a partition
-	fdb	p_cmd_size-1
 
-	fcb	ch_cr+$80	; boot partition
-	fdb	p_cmd_boot-1
-	
-	fcb	key_left+$80
-	fdb	p_cmd_up-1
-	
-	fcb	key_up+$80
-	fdb	p_cmd_up-1
-	
-	fcb	key_down+$80
-	fdb	p_cmd_down-1
-	
-	fcb	key_right+$80
-	fdb	p_cmd_down-1
-	
-	fcb	ch_esc+$80	; quit
-	fdb	p_cmd_exit-1
-	
-	fcb	'R'+$80		; Reconfigure
-	fdb	p_cmd_reconfigure-1
-	
-	fcb	$00
+D0af7:	cmd_ent	'N',p_cmd_name
+	cmd_ent	'C',p_cmd_clear		; Clear a partition
+	cmd_ent	'S',p_cmd_size		; change Size of a partition
+	cmd_ent ch_cr,p_cmd_boot	; boot partition
+	cmd_ent	key_left,p_cmd_up
+	cmd_ent	key_up,p_cmd_up
+	cmd_ent key_down,p_cmd_down
+	cmd_ent	key_right,p_cmd_down
+	cmd_ent	ch_esc,p_cmd_exit	; quit
+	cmd_ent	'R',p_cmd_reconfigure	; Reconfigure
+	fcb	$00			; end of table
+
 
 p_cmd_boot:
 	bit	D0900
@@ -2108,7 +2098,7 @@ p_cmd_down:
 	bcc	L0b3f
 
 p_cmd_name:
-	ldy	#p_msg_idx_76
+	ldy	#p_msg_idx_new_name
 	jsr	p_msgout
 	ldx	#$10
 	jsr	S0e4f
@@ -2134,7 +2124,7 @@ p_cmd_size:
 	bcs	L0bea
 	jsr	S0e46
 	beq	L0bea
-	ldy	#p_msg_idx_7f
+	ldy	#p_msg_idx_new_size
 	jsr	p_msgout
 	ldx	#$06
 	jsr	S0e4f
@@ -2246,11 +2236,11 @@ D0c6f:	rts
 
 	fcb	$4c,$00,$33,$cd
 
-D0c74:	fcb	p_msg_idx_df
-	fcb	p_msg_idx_e9
-	fcb	p_msg_idx_f5
-	fcb	p_msg_idx_e4
-	fcb	p_msg_idx_ef
+D0c74:	fcb	p_msg_idx_clear
+	fcb	p_msg_idx_prodos
+	fcb	p_msg_idx_pascal
+	fcb	p_msg_idx_dos
+	fcb	p_msg_idx_cpm
 
 
 print_two_spaces:
@@ -2337,52 +2327,55 @@ tbl2	set	"N\xffFPUDM-19=BQWZY"
 
 ; compressed message table
 p_msgtab:
-p_msg_idx_00	equ	*-p_msgtab
+p_msg_idx_heading	equ	*-p_msgtab
 	encode	"\x0dRAMFACTOR PARTITIONS\x01\x01\x01  SLOT = "
 
-p_msg_idx_14	equ	*-p_msgtab
+p_msg_idx_help_1	equ	*-p_msgtab
 	encode	"\x0dUSE ARROWS OR 1-9 TO SELECT\x0d\x0d"
 
-p_msg_idx_27	equ	*-p_msgtab
+p_msg_idx_help_2	equ	*-p_msgtab
 	encode	"N=NAME CHANGE\x01\x01 RET=INSTALL CHANGES\x0dS=SIZE CHANGE\x01\x01 ESC=FORGET CHANGES\x0dC=CLEAR PARTITION"
 
-p_msg_idx_59	equ	*-p_msgtab
+; XXX referenced from where?
+p_msg_idx_help_3	equ	*-p_msgtab
 	encode	"RET=BOOT THE PARTITION\x01 R=RECONFIGURE\x0dESC=QUIT"
 
-p_msg_idx_76	equ	*-p_msgtab
+p_msg_idx_new_name	equ	*-p_msgtab
 	encode	"\x0d\x0dNEW NAME = "
 
-p_msg_idx_7f	equ	*-p_msgtab
+p_msg_idx_new_size	equ	*-p_msgtab
 	encode	"\x0d\x0dNEW SIZE = "
 ;	fcb	$11,$fb,$0d,$9d,$50,$eb,$90,$a9
 ;	fcb	$01
 ; "NEW SIZE = "
 
-p_msg_idx_88	equ	*-p_msgtab
+p_msg_idx_warning_installing	equ	*-p_msgtab
 	encode	"\x0dWARNING- INSTALLING PARTITIONS DESTROYS\x0dTHE DIRECTORY- GO AHEAD"
 
-p_msg_idx_ae	equ	*-p_msgtab
+p_msg_idx_cannot_boot	equ	*-p_msgtab
 	encode	"\x0d\x0dCANNOT BOOT THAT PARTITION\x0dBOOT FROM SLOT = "
 
-p_msg_idx_c9	equ	*-p_msgtab
+; XXX referenced from where?
+p_msg_idx_cannot_change_size	equ	*-p_msgtab
 	encode	"\x0d\x0dCANNOT CHANGE SIZE"
 
-p_msg_idx_d5	equ	*-p_msgtab
+; XXX referenced from where?
+p_msg_idx_size_too_large	equ	*-p_msgtab
 	encode	"\x0d\x0dSIZE TOO LARGE"
 
-p_msg_idx_df	equ	*-p_msgtab
+p_msg_idx_clear	equ	*-p_msgtab
 	encode	"CLEAR \x0d"
 
-p_msg_idx_e4	equ	*-p_msgtab
+p_msg_idx_dos	equ	*-p_msgtab
 	encode	"DOS   \x0d"
 
-p_msg_idx_e9	equ	*-p_msgtab
+p_msg_idx_prodos	equ	*-p_msgtab
 	encode	"PRODOS\x0d"
 
-p_msg_idx_ef	equ	*-p_msgtab
+p_msg_idx_cpm	equ	*-p_msgtab
 	encode	"CP-M  \x0d"
 
-p_msg_idx_f5	equ	*-p_msgtab
+p_msg_idx_pascal	equ	*-p_msgtab
 	encode	"PASCAL\x0d"
 
 
@@ -2408,7 +2401,7 @@ L0df6:	jsr	S0dd7
 	ora	D0803,Y
 	beq	L0e09
 L0e06:	jsr	S0e27
-L0e09:	ldy	#p_msg_idx_ae
+L0e09:	ldy	#p_msg_idx_cannot_boot
 	jsr	p_msgout
 L0e0e:	ldx	#$01
 	jsr	S0e4f
