@@ -151,15 +151,46 @@ D01a9	equ	$01a9
 D0200	equ	$0200
 D0400	equ	$0400
 
+
+; card HW regs typically would be addressed using a
+; base address of $c00r or $c084, with an index
+; register value of $n0, where n is the slot number,
+; or the slot number + $80.  However, with the 6502
+; this would result in false reads of
+; Apple IIe/IIc/IIgs soft switches or Language Card
+; soft switches (integral to the IIe/IIc/IIgs).
+;
+; Instead, we use base addresses at the end of Apple DRAM
+; the $88 offset is used so that the "false read"
+; of an indexed address will be to DRAM, and not
+; screw up the Language Card switches.
+;
+; For example for a card in slot 4, with a register
+; at $coc3:
+;
+;    base      index      register    false read
+;    -----     -----      --------    ----------
+;    $c003     $c0        $c0c3       $c003 RDCARDRAM
+;    $c083     $40        $c0c3       $c083 LCBANK2
+;    $bffb     $c8        $c0c3       $bffb (no problem)
+
+hw_reg_offset	equ	$88
+
+
 ; screen holes, global (not indexed)
-; mslot appears to be the only global screen hole for which Apple
-; has defined a function.
+; Since these are not slot-specific, they are only suitable for scratch
+; use.
+; BEWARE: Even scratch use is questionable if interrupts are in use,
+; because an interrupt hander might use these.
 shg_0478	equ	$0478
 shg_04f8	equ	$04f8
 shg_0578	equ	$0578
 shg_05f8	equ	$05f8
-shg_0778	equ	$0778
-mslot		equ	$07f8
+mslot1088	equ	$0778		; stores (slot*$10)+hw_reg_offset
+
+; mslot appears to be the only global screen hole for which Apple
+; has defined a function.
+mslot		equ	$07f8		; stores $Cn, where n is the slot number
 
 ; screen holes, indexed by $Cn, where n is slot number (1 through 7)
 shs_card_block_count	equ	$0478-$c0	; # blocks of whole card, divided by 256
@@ -180,13 +211,11 @@ ram_application_base	equ	$0a00
 Dbd12	equ	$bd12	; RWTS patch loc, three bytes
 
 proflag	equ	$bf00	; used to detect OS
-			; $00 - Pascal
-			; $4C - ProDOS
-			; $33 - DOS 3.3
-Dbff8	equ	$bff8
-Dbff9	equ	$bff9
-Dbffa	equ	$bffa
-Dbffb	equ	$bffb
+os_pascal	equ	$00
+os_prodos	equ	$4c
+os_dos		equ	$33
+os_cpm		equ	$cd
+
 
 kbd		equ	$c000	; read keyboard
 rdmainram	equ	$c002	; IIe read main RAM
@@ -199,8 +228,15 @@ kbdstrb		equ	$c010	; clea rkeyboard strobe
 rdramrd		equ	$c013	; IIe MSB reads 1 if aux RAM read enabled
 rdramwrt	equ	$c014	; IIe MSB reads 1 if aux RAM write enabled
 
-Dc0nf	equ	$c08f	; bank select, add slot*$10
-	
+
+; hardware registers
+hw_reg_addr_low		equ	$c080	; low byte of hardware RAM address, add slot*$10
+hw_reg_addr_mid		equ	$c081	; low byte of hardware RAM address, add slot*$10
+hw_reg_addr_high	equ	$c082	; low byte of hardware RAM address, add slot*$10
+hw_reg_data		equ	$c083	; low byte of hardware RAM address, add slot*$10
+hw_reg_rom_bank		equ	$c08f	; bank select, add slot*$10
+
+
 Dcfff	equ	$cfff	; turn off C800 shared ROM space
 
 sloop	equ	$faba
@@ -281,10 +317,10 @@ Scn16:	sta	clr80vid
 
 romsel:	ldy	#$c0+slotnum
 	ldx	Dcfff	; turn off all shared (c800) ROMs, except our
-	asl	Dc0nf+(slotnum*$10)	; set bank 0
-	ldx	#$88+(slotnum*$10)
+	asl	hw_reg_rom_bank+(slotnum*$10)	; set bank 0
+	ldx	#(slotnum*$10)+hw_reg_offset
 	sty	mslot
-	stx	shg_0778
+	stx	mslot1088
 	jmp	Lc9df
 
 boot4:	lda	#$c0+slotnum
@@ -354,8 +390,8 @@ Lcna3:	lda	Dcnd5,y
 
 	php
 	sei
-	stx	Dc0nf+(slotnum*$10)	; set bank 1 ?
-	ldx	#$88+(slotnum*$10)
+	stx	hw_reg_rom_bank+(slotnum*$10)	; set bank 1 ?
+	ldx	#(slotnum*$10)+hw_reg_offset
 
 	ldy	#$00	; set Z3e to point to RAM where diag/partmgr load
 	sty	Z3e
@@ -373,7 +409,7 @@ Lcnc6:	cpy	Z44
 	sbc	Z45
 	bcc	Lcnbb
 
-	asl	Dc0nf+(slotnum*$10)	; set bank 0
+	asl	hw_reg_rom_bank+(slotnum*$10)	; set bank 0
 	plp
 	jmp	ram_application_base
 
@@ -478,7 +514,7 @@ Lc83f:	lda	(Z43),y
 	lsr		; first param is unit num, only allow 0 and 1
 	bne	ret_err_bad_unit_num
 
-	ldx	shg_0778
+	ldx	mslot1088
 
 	ldy	Z42	; protocol converter command
 	lda	#$c8
@@ -635,7 +671,7 @@ Lc923:	jsr	Sc964
 Lc932:	lda	Z48
 	sta	shg_05f8
 	beq	Lc947
-Lc939:	lda	Dbffb,x
+Lc939:	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z45),y
 	iny
 	bne	Lc939
@@ -645,7 +681,7 @@ Lc939:	lda	Dbffb,x
 Lc947:	lda	Z47
 	beq	Lc958
 	sta	shg_0578
-Lc94e:	lda	Dbffb,x
+Lc94e:	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z45),y
 	iny
 	cpy	Z47
@@ -657,12 +693,12 @@ Lc958:	sta	wrmainram
 Lc961:	jmp	Lc866
 
 Sc964:	lda	Z49
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	lda	Z4a
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	lda	Z4b
 	and	#$7f
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	jsr	Sca9d
 	ldy	#$00
 	lda	Z4b
@@ -682,7 +718,7 @@ Lc994:	lda	Z48
 	sta	shg_05f8
 	beq	Lc9a9
 Lc99b:	lda	(Z45),y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	Lc99b
 	inc	Z46
@@ -692,7 +728,7 @@ Lc9a9:	lda	Z47
 	sta	shg_0578
 	beq	Lc9ba
 Lc9b0:	lda	(Z45),y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	cpy	Z47
 	bne	Lc9b0
@@ -711,63 +747,68 @@ Dc9c6:	fcb	$f8,$00,$00,$00
 
 	public	Lc9df	; referenced by slot, partmgr
 Lc9df:	ldy	mslot
-	jsr	Sca8e
-	lda	Dbffb,x
+	jsr	clear_ram_ptr
+	lda	hw_reg_data-hw_reg_offset,x
 	cmp	#$ae
 	bne	Lca31
-	eor	Dbffb,x
+	eor	hw_reg_data-hw_reg_offset,x
 	cmp	#$5a
 	bne	Lca31
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_idx_part_data,y
 	eor	#$5a
-	cmp	Dbffb,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	Lca31
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_card_block_count,y
 	lda	shs_idx_part_data,y
-	sta	Dbff8,x
-	lda	Dbffb,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_part_base_high,y
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_part_base_mid,y
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_cur_part_size_high,y
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_cur_part_size_low,y
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_os_code,y
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_os_check,y
 	rts
 
-Lca31:	lda	shs_os_code,y
+Lca31:	lda	shs_os_code,y		; is the OS code valid?
 	eor	shs_os_check,y
 	cmp	#$5a
-	beq	Lca73
-	jsr	Sca8e
+	beq	Lca73			; yes, don't have to probe
+
+	jsr	clear_ram_ptr
 	lda	#$04
-	sta	Dbff9,x
-	lda	Dbffb,x
-	eor	Dbffb,x
-	eor	Dbffb,x
-	eor	Dbffb,x
-	ldx	#$4c
+	sta	hw_reg_addr_mid-hw_reg_offset,x
+
+	lda	hw_reg_data-hw_reg_offset,x
+	eor	hw_reg_data-hw_reg_offset,x
+	eor	hw_reg_data-hw_reg_offset,x
+	eor	hw_reg_data-hw_reg_offset,x
+
+	ldx	#os_prodos
 	cmp	#$03
 	beq	Lca61
-	ldx	#$00
+	ldx	#os_pascal
 	cmp	#$06
 	beq	Lca61
-	ldx	#$33
+	ldx	#os_dos
 	cmp	#$be
 	bne	Lca6a
-Lca61:	txa
+Lca61:	txa				; store OS code
 	sta	shs_os_code,y
 	eor	#$5a
 	sta	shs_os_check,y
+
 Lca6a:	jsr	Scb00
 	ldy	mslot
 	sta	shs_card_block_count,y
+
 Lca73:	lda	shs_card_block_count,y
 	asl
 	sta	shs_cur_part_size_high,y
@@ -780,22 +821,24 @@ Lca73:	lda	shs_card_block_count,y
 	rts
 
 	public	Sca8b	; referenced from diag, pmgr
-Sca8b:	ldx	shg_0778
+Sca8b:	ldx	mslot1088
 
-	public	Sca8e	; referenced from diag, pmgr
-Sca8e:	lda	#$00
-	sta	Dbff8,x
-	sta	Dbff9,x
-	sta	Dbffa,x
+	public	clear_ram_ptr	; referenced from diag, pmgr
+; apparently X reg must contain (slot*$10)+$88
+clear_ram_ptr:
+	lda	#$00
+	sta	hw_reg_addr_low-hw_reg_offset,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	rts
 
 	public	Sca9a	; referenced from slot
-Sca9a:	jsr	Sca8e
+Sca9a:	jsr	clear_ram_ptr
 
 Sca9d:	ldy	mslot
 	lda	shs_card_block_count,y
 	cmp	#$09
-	lda	Dbffa,x
+	lda	hw_reg_addr_high-hw_reg_offset,x
 	bcs	Lcaac
 	and	#$0f
 Lcaac:	pha
@@ -803,39 +846,39 @@ Lcaac:	pha
 	lda	shs_idx_part_data,y
 	cmp	#$08
 	bne	Lcacd
-	lda	Dbff9,x
+	lda	hw_reg_addr_mid-hw_reg_offset,x
 	cmp	#$02
 	bcs	Lcacd
 	ora	#$fe
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	lda	shs_card_block_count,y
 	sbc	#$00
 	rol
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 Lcacb:	pla
 	rts
 
-Lcacd:	lda	Dbff9,x
+Lcacd:	lda	hw_reg_addr_mid-hw_reg_offset,x
 	cmp	shs_cur_part_size_low,y
 	pla
 	pha
 	sbc	shs_cur_part_size_high,y
 	bcs	Lcacb
-	lda	Dbff9,x
+	lda	hw_reg_addr_mid-hw_reg_offset,x
 	adc	shs_part_base_mid,y
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	pla
 	adc	shs_part_base_high,y
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	rts
 
 	public	Scaeb	; referenced from slot, pmgr
 Scaeb:	ldy	#$00
-Lcaed:	lda	Dbffb,x
+Lcaed:	lda	hw_reg_data-hw_reg_offset,x
 	sta	D0800,y
 	iny
 	bne	Lcaed
-Lcaf6:	lda	Dbffb,x
+Lcaf6:	lda	hw_reg_data-hw_reg_offset,x
 	sta	D0900,y
 	iny
 	bne	Lcaf6
@@ -844,19 +887,19 @@ Lcaf6:	lda	Dbffb,x
 	public	Scb00	; referenced from diag
 Scb00:	jsr	Sca8b
 	tay
-	cmp	Dbffa,x
+	cmp	hw_reg_addr_high-hw_reg_offset,x
 	bne	Lcb0b
 	ldy	#$02
 Lcb0b:	ora	Dcb95,y
 Lcb0e:	sta	Z3f
 	sta	Z3e
-	sta	Dbffa,x
-	lda	Dbffb,x
-	dec	Dbff8,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
+	lda	hw_reg_data-hw_reg_offset,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
 	pha
 	lda	Z3f
-	sta	Dbffb,x
-	dec	Dbff8,x
+	sta	hw_reg_data-hw_reg_offset,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
 	and	Dcb95,y
 	beq	Lcb3d
 	lda	Z3f
@@ -868,26 +911,26 @@ Lcb32:	clc
 	lda	Z3f
 	adc	Dcb98,y
 	sta	Z3f
-	sta	Dbffa,x
-Lcb3d:	lda	Dbffb,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
+Lcb3d:	lda	hw_reg_data-hw_reg_offset,x
 	cmp	Z3f
 	bne	Lcb83
 	eor	#$ff
-	dec	Dbff8,x
-	sta	Dbffb,x
-	dec	Dbff8,x
-	cmp	Dbffb,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
+	sta	hw_reg_data-hw_reg_offset,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	Lcb83
-	dec	Dbff8,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
 	lda	Z3f
 	and	Dcb95,y
 	cmp	Dcb95,y
 	bne	Lcb32
 Lcb61:	lda	Z3e
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	pla
-	sta	Dbffb,x
-	dec	Dbff8,x
+	sta	hw_reg_data-hw_reg_offset,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
 	clc
 	lda	Z3e
 	adc	Dcb98,y
@@ -901,7 +944,7 @@ Lcb61:	lda	Z3e
 	adc	#$02
 	rts
 
-Lcb83:	dec	Dbff8,x
+Lcb83:	dec	hw_reg_addr_low-hw_reg_offset,x
 	sec
 	lda	Z3f
 	beq	Lcb61
@@ -996,12 +1039,12 @@ prodos_read:
 	jsr	Scc58
 	bcs	Lcc0a
 	ldy	#$00
-Lcc26:	lda	Dbffb,x
+Lcc26:	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z44),y
 	iny
 	bne	Lcc26
 	inc	Z45
-Lcc30:	lda	Dbffb,x
+Lcc30:	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z44),y
 	iny
 	bne	Lcc30
@@ -1015,25 +1058,25 @@ prodos_write:
 	bcs	Lcc0a
 	ldy	#$00
 Lcc44:	lda	(Z44),y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	Lcc44
 	inc	Z45
 Lcc4e:	lda	(Z44),y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	Lcc4e
 	beq	Lcc38
 
 Scc58:	lda	#$00
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	lda	Z46
 	asl
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	lda	Z47
 	rol
 	bcs	Lcc6e
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	jsr	Sca9d
 Lcc6e:	rts
 
@@ -1076,9 +1119,9 @@ Lcca9:	pha
 	pha
 	jsr	Sca8b
 	pla
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	pla
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	jsr	Sca9d
 	bcs	Lccdd
 	ldy	#$08
@@ -1099,11 +1142,11 @@ Lccdd:	sec
 	ldy	#$80
 Lcce0:	bne	Lccf5
 Lcce2:	lda	(Z3e),y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	Lcce2
 	beq	Lccf4
-Lccec:	lda	Dbffb,x
+Lccec:	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z3e),y
 	iny
 	bne	Lccec
@@ -1215,18 +1258,18 @@ Lcdb2:	jsr	Scdec
 	bne	Lcdc1
 	ldy	#$87
 Lcdc1:	jsr	Scdfb
-	jsr	Sca8e
+	jsr	clear_ram_ptr
 	ldy	mslot
 	lda	shs_idx_part_data,y
 	cmp	#$01
 	beq	Lcde2
 	clc
 	adc	#$04
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	lda	shs_os_code,y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	eor	#$5a
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 Lcde2:	lda	shs_os_code,y
 	eor	#$5a
 	sta	shs_os_check,y
@@ -1235,11 +1278,11 @@ Lcde2:	lda	shs_os_code,y
 
 	public	Scdec	; referenced from slot
 Scdec:	lda	proflag
-	beq	Lcdf3
-	cmp	#$4c
+	beq	Lcdf3	; Pascal
+	cmp	#os_prodos
 Lcdf3:	rts
 
-Lcdf4:	ldx	shg_0778
+Lcdf4:	ldx	mslot1088
 	jsr	Sce67
 	iny
 
@@ -1249,10 +1292,10 @@ Scdfb:	lda	Dcf30,y
 	rts
 
 Lce01:	and	#$0f
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 
 Sce06:	lda	#$00
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	rts
 
 Lce0c:	tya
@@ -1273,9 +1316,9 @@ Lce23:	lsr
 	ror	Z3e
 	dey
 	bpl	Lce23
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	lda	Z3e
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	pla
 	tay
 	rts
@@ -1285,10 +1328,10 @@ Lce34:	jsr	Sce53
 Lce39:	pha
 	jsr	Sce06
 	lda	#$11
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	pla
 	pha
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	jsr	Sce53
 	pla
 	clc
@@ -1300,12 +1343,12 @@ Lce39:	pha
 Sce53:	lda	#$00
 	skip2
 Lce56:	lda	#$ff
-Lce58:	sta	Dbffb,x
-	cmp	Dbff8,x
+Lce58:	sta	hw_reg_data-hw_reg_offset,x
+	cmp	hw_reg_addr_low-hw_reg_offset,x
 	bne	Lce58
 	ror
 	bcc	Lce66
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 Lce66:	rts
 
 Sce67:	cmp	#$40
@@ -1340,7 +1383,7 @@ Lce8e:	pha
 	bcs	Lcea2
 	iny
 	lda	Dcf30,y
-Lcea2:	sta	Dbffb,x
+Lcea2:	sta	hw_reg_data-hw_reg_offset,x
 	pla
 	sec
 	sbc	#$01
@@ -1351,10 +1394,10 @@ Lceab:	pla
 Lcead:	and	#$0f
 Lceaf:	pha
 	lda	#$ff
-	sta	Dbffb,x
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
+	sta	hw_reg_data-hw_reg_offset,x
 	jsr	Sce06
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	pla
 	sec
 	sbc	#$01
@@ -1362,22 +1405,22 @@ Lceaf:	pha
 	rts
 
 Lcec5:	lda	shg_04f8
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	lda	shg_0478
-Lcece:	sta	Dbffb,x
+Lcece:	sta	hw_reg_data-hw_reg_offset,x
 	rts
 
 Lced2:	lda	mslot
 	eor	#$f0
 	bne	Lcece
 Lced9:	lda	#$00
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	iny
 	lda	Dcf30,y
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	iny
 	lda	Dcf30,y
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	tya
 	pha
 	jsr	Sca9d
@@ -1415,13 +1458,13 @@ Lcf1b:	sec
 	dey
 	bpl	Lcf1b
 	asl
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	pla
 	tay
 	rts
 
 Scf27:	lda	#$ff
-Lcf29:	sta	Dbffb,x
+Lcf29:	sta	hw_reg_data-hw_reg_offset,x
 	dey
 	bne	Lcf29
 	rts
@@ -1497,11 +1540,11 @@ dL0a1b:	sty	Z3e
 	ldy	#d_msg_idx_bytes
 	jsr	d_msgout
 	jsr	Sca8b
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	lda	#$04
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	lda	#$ff
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	ldy	mslot
 	sta	shs_os_code,y
 dL0a3d:	lda	#$00
@@ -1552,30 +1595,30 @@ dL0a80:	tya
 
 dL0a9a:	ldy	#d_msg_idx_address
 	jsr	d_msgout
-	ldx	shg_0778
-	lda	Dbff8,x
-	dec	Dbff8,x
+	ldx	mslot1088
+	lda	hw_reg_addr_low-hw_reg_offset,x
+	dec	hw_reg_addr_low-hw_reg_offset,x
 	and	#$7f
 	bne	dL0ab9
-	lda	Dbff9,x
-	dec	Dbff9,x
+	lda	hw_reg_addr_mid-hw_reg_offset,x
+	dec	hw_reg_addr_mid-hw_reg_offset,x
 	and	#$7f
 	bne	dL0ab9
-	dec	Dbffa,x
-dL0ab9:	lda	Dbffa,x
+	dec	hw_reg_addr_high-hw_reg_offset,x
+dL0ab9:	lda	hw_reg_addr_high-hw_reg_offset,x
 	ldy	dD0d2a
 	cpy	#$09
 	bcs	dL0ac5
 	and	#$0f
 dL0ac5:	jsr	prbyte
-	lda	Dbff9,x
+	lda	hw_reg_addr_mid-hw_reg_offset,x
 	jsr	prbyte
-	lda	Dbff8,x
+	lda	hw_reg_addr_low-hw_reg_offset,x
 	jsr	prbyte
 	lda	#$ad
 	jsr	cout
 	pla
-	eor	Dbffb,x
+	eor	hw_reg_data-hw_reg_offset,x
 	jsr	prbyte
 	jsr	crout
 	rts
@@ -1599,13 +1642,13 @@ dD0af4:	fdb	dL0be4-1
 dL0afc:	ldy	#$00
 dL0afe:	tya
 	jsr	dS0b0a
-	eor	Dbffa,x
+	eor	hw_reg_addr_high-hw_reg_offset,x
 	and	#$0f
 	bne	dL0b1c
 	tya
-	cmp	Dbff9,x
+	cmp	hw_reg_addr_mid-hw_reg_offset,x
 	bne	dL0b1c
-	cmp	Dbff8,x
+	cmp	hw_reg_addr_low-hw_reg_offset,x
 	bne	dL0b1c
 	jsr	dS0ae4
 	iny
@@ -1636,14 +1679,14 @@ dL0b25:	lda	dD0d28
 	rts
 
 dL0b4b:	jsr	dS0ae4
-	lda	Dbffb,x
-	lda	Dbffa,x
+	lda	hw_reg_data-hw_reg_offset,x
+	lda	hw_reg_addr_high-hw_reg_offset,x
 	eor	dD0d26
 	bne	dL0b69
-	lda	Dbff9,x
+	lda	hw_reg_addr_mid-hw_reg_offset,x
 	cmp	dD0d27
 	bne	dL0b69
-	lda	Dbff8,x
+	lda	hw_reg_addr_low-hw_reg_offset,x
 	cmp	dD0d28
 	beq	dL0b25
 dL0b69:	sec
@@ -1673,17 +1716,17 @@ dL0b81:	lda	dD0d2a
 dL0b94:	clc
 	rts
 
-dS0b96:	jsr	Sca8e
+dS0b96:	jsr	clear_ram_ptr
 	tay
 dL0b9a:	tya
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	jsr	dS0bbe
 	bne	dL0b9a
 	jsr	dS0ae4
 	tya
 	jsr	dS0b0a
 dL0baa:	tya
-	cmp	Dbffb,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	dL0bba
 	jsr	dS0bbe
 	bne	dL0baa
@@ -1699,7 +1742,7 @@ dL0bba:	pla
 dS0bbe:	bit	dD0d30
 	bpl	dL0bdb
 	inc	dD0d26
-	inc	Dbffa,x
+	inc	hw_reg_addr_high-hw_reg_offset,x
 	lda	dD0d26
 	lsr
 	cmp	dD0d2a
@@ -1739,10 +1782,10 @@ dS0c0a:	tya
 	lda	dD0d2c
 	ldy	#$00
 	sty	dD0d2e
-dL0c14:	sta	Dbffb,x
-	sta	Dbffb,x
-	sta	Dbffb,x
-	sta	Dbffb,x
+dL0c14:	sta	hw_reg_data-hw_reg_offset,x
+	sta	hw_reg_data-hw_reg_offset,x
+	sta	hw_reg_data-hw_reg_offset,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	dL0c14
 	jsr	dS0ae4
@@ -1764,13 +1807,13 @@ dS0c3c:	tya
 	lda	dD0d2c
 	ldy	#$00
 	sty	dD0d2e
-dL0c46:	cmp	Dbffb,x
+dL0c46:	cmp	hw_reg_data-hw_reg_offset,x
 	bne	dL0c69
-	cmp	Dbffb,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	dL0c69
-	cmp	Dbffb,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	dL0c69
-	cmp	Dbffb,x
+	cmp	hw_reg_data-hw_reg_offset,x
 	bne	dL0c69
 	iny
 	bne	dL0c46
@@ -1790,7 +1833,7 @@ dL0c69:	tay
 dS0c6d:	lda	dD0d2a
 	lsr
 	sta	dD0d2d
-	jmp	Sca8e
+	jmp	clear_ram_ptr
 
 
 ; d_msgout decompresses and outputs a message
@@ -1883,11 +1926,11 @@ dS0b0a:	sta	dD0d28
 	sty	dD0d26
 
 dS0d13:	lda	dD0d28
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	lda	dD0d27
-	sta	Dbff9,x
+	sta	hw_reg_addr_mid-hw_reg_offset,x
 	lda	dD0d26
-	sta	Dbffa,x
+	sta	hw_reg_addr_high-hw_reg_offset,x
 	rts
 
 dD0d26:	equ	*
@@ -1940,9 +1983,6 @@ D0906	equ	$0906
 D0907	equ	$0907
 D0908	equ	$0908
 
-Dbff8	equ	$bff8
-Dbffb	equ	$bffb
-
 bell12	equ	$fbe2
 clreop	equ	$fc42
 home	equ	$fc58
@@ -1952,14 +1992,14 @@ cout	equ	$fded
 
 partmgr:
 	jsr	Sca8b
-	lda	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
 	cmp	#$ae
 	bne	pL0a1b
-	eor	Dbffb,x
+	eor	hw_reg_data-hw_reg_offset,x
 	cmp	#$5a
 	bne	pL0a1b
-	lda	Dbffb,x
-	eor	Dbffb,x
+	lda	hw_reg_data-hw_reg_offset,x
+	eor	hw_reg_data-hw_reg_offset,x
 	cmp	#$5a
 	beq	pL0a6b
 pL0a1b:	ldy	mslot
@@ -1982,21 +2022,21 @@ pL0a3f:	jsr	Sca8b
 	jsr	Scdfb
 	jsr	Sca8b
 	lda	#$04
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	ldy	mslot
 	lda	shs_card_block_count,y
 	pha
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	lda	#$0a
-	sta	Dbff8,x
+	sta	hw_reg_addr_low-hw_reg_offset,x
 	pla
 	asl
 	sec
 	sbc	#$01
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	lda	#$fc
-	sta	Dbffb,x
-pL0a6b:	jsr	Sca8e
+	sta	hw_reg_data-hw_reg_offset,x
+pL0a6b:	jsr	clear_ram_ptr
 	jsr	Scaeb
 	lda	D0802
 	sta	D0901
@@ -2206,18 +2246,22 @@ pL0c12:	stx	Z32
 	jsr	cout
 	jsr	print_two_spaces
 	pla
+
+; output paritition name, followed by two spaces
 	pha
 	tay
 	ldx	#$10
 pL0c26:	lda	D0808,y
 	bne	pL0c2d
-	lda	#' '+$80
+	lda	#' '+$80	; NUL chars converted to spaces
 pL0c2d:	jsr	cout
 	iny
 	dex
 	bne	pL0c26
 	jsr	print_two_spaces
 	pla
+
+; output partition size in pages, followed by two spaces
 	pha
 	tay
 	lda	D0802,y
@@ -2229,27 +2273,37 @@ pL0c2d:	jsr	cout
 	sta	Z32
 	jsr	print_two_spaces
 	pla
+
+; output paritition type
 	tay
 	lda	D0805,y
 	eor	#$5a
 	cmp	D0804,y
 	beq	pL0c5c
-	lda	#$01
-pL0c5c:	ldy	#$04
-pL0c5e:	cmp	pD0c70-1,y
+	lda	#$01		; if the parition type is invalid (code xor check != 0x5a), consider it clear ($01 not in table)
+
+pL0c5c:	ldy	#$04		; search paritiion type table for the code
+pL0c5e:	cmp	parition_type_code_table-1,y
 	beq	pL0c66
 	dey
 	bne	pL0c5e
-pL0c66:	lda	pD0c74,y
+; if we fall through here, Y=00, which means that there was no match, and that the parititon is "clear"
+
+pL0c66:	lda	partition_type_msg_idx_table,y
 	tay
 	jsr	p_msgout
 	pla
 	tay
 	rts
 
-pD0c70:	fcb	$4c,$00,$33,$cd
+parition_type_code_table:
+	fcb	os_prodos
+	fcb	os_pascal
+	fcb	os_dos
+	fcb	os_cpm
 
-pD0c74:	fcb	p_msg_idx_clear
+partition_type_msg_idx_table:
+	fcb	p_msg_idx_clear
 	fcb	p_msg_idx_prodos
 	fcb	p_msg_idx_pascal
 	fcb	p_msg_idx_dos
@@ -2402,7 +2456,7 @@ pS0dd7:	lda	D0901
 pS0de8:	jsr	Sca8b
 	tay
 pL0dec:	lda	D0800,y
-	sta	Dbffb,x
+	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	pL0dec
 	rts
@@ -2429,7 +2483,7 @@ pL0e0e:	ldx	#$01
 	lda	#$00
 	beq	pL0e2f
 
-pS0e27:	ldx	shg_0778
+pS0e27:	ldx	mslot1088
 	ldy	mslot
 	lda	#$7b
 pL0e2f:	sty	L00+1
