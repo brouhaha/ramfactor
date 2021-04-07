@@ -29,6 +29,8 @@ fcsm	macro	s
 	endm
 	endm
 
+; skip macros - NOTE: these alter the Z, N, and V flags
+
 skip1	macro
 	fcb	$24	; BIT zero page opcoe
 	endm
@@ -115,22 +117,30 @@ nib_msb	set	1
 	endm
 
 
-ch_bs		equ	$08
-ch_lf		equ	$0a
-ch_vt		equ	$0b
-ch_cr		equ	$0d
-ch_nak		equ	$15
-ch_esc		equ	$1b
+char_bs		equ	$08
+char_lf		equ	$0a
+char_vt		equ	$0b
+char_cr		equ	$0d
+char_nak	equ	$15
+char_esc		equ	$1b
 
-key_left	equ	ch_bs
-key_right	equ	ch_nak
-key_up		equ	ch_vt
-key_down	equ	ch_lf
+key_left	equ	char_bs
+key_right	equ	char_nak
+key_up		equ	char_vt
+key_down	equ	char_lf
 
 
 
+; zero page locations
 L00	equ	$00
-Z39	equ	$39
+
+; Apple II monitor zero page locations
+ch	equ	$24
+CV	equ	$25
+invflg	equ	$32	; $
+kswl	equ	$38
+
+; ProDOS and disk driver zero page locations
 Z3e	equ	$3e
 Z3f	equ	$3f
 Z41	equ	$41
@@ -324,7 +334,7 @@ romsel:	ldy	#$c0+slotnum
 	jmp	Lc9df
 
 boot4:	lda	#$c0+slotnum
-	cmp	Z39
+	cmp	kswl+1
 	php
 	jsr	Scn16
 	plp
@@ -1518,7 +1528,7 @@ b1_diag	equ	*-$1000
 	section	diag
 	phase	ram_application_base
 
-Z24	equ	$24
+ch	equ	$24
 Z28	equ	$28
 Z29	equ	$29
 	
@@ -1548,14 +1558,14 @@ dL0a1b:	sty	Z3e
 	ldy	mslot
 	sta	shs_os_code,y
 dL0a3d:	lda	#$00
-	sta	Z24
+	sta	ch
 	ldy	#d_msg_idx_pass
 	jsr	d_msgout
 	lda	dD0d2f
 	jsr	prbyte
 	ldy	#d_msg_idx_testing
 	jsr	d_msgout
-	lda	Z24
+	lda	ch
 	clc
 	adc	Z28
 	sta	dS0ae4+1
@@ -1883,7 +1893,7 @@ dL0c9b:	iny		; advance pointer
 ; permutation that might be intended to confuse reverse-engineers.
 d_msg_dec_tab_1:
 	fcb	$00		; escabe to second table
-	fcb	ch_cr+$80	; carriage return
+	fcb	char_cr+$80	; carriage return
 	fcsm	"RAM.TIS GOLDE"
 
 ; mibble to character decode table 2
@@ -1955,12 +1965,6 @@ b1_partmgr	equ	*-$1000
 	section partmgr
 	phase	ram_application_base
 
-Z24	equ	$24
-Z25	equ	$25
-Z32	equ	$32
-Z3e	equ	$3e
-Z3f	equ	$3f
-
 D0800	equ	$0800
 D0801	equ	$0801
 D0802	equ	$0802
@@ -1989,6 +1993,10 @@ home	equ	$fc58
 rdkey	equ	$fd0c
 crout	equ	$fd8e
 cout	equ	$fded
+
+
+partition_table_entry_size	equ	24
+
 
 partmgr:
 	jsr	Sca8b
@@ -2042,9 +2050,11 @@ pL0a6b:	jsr	clear_ram_ptr
 	sta	D0901
 	jsr	home
 pL0a7a:	lsr	D0900
-pL0a7d:	lda	#$00
-	sta	Z24
-	sta	Z25
+
+pL0a7d:	lda	#$00	; home the cursor without clearing the screen
+	sta	ch
+	sta	CV
+
 	ldy	#p_msg_idx_heading
 	jsr	p_msgout
 	lda	mslot
@@ -2073,7 +2083,7 @@ pL0aee:	jsr	p_msgout
 	bcs	pL0acf		; not a digit
 
 	sbc	#$b0		; ASCII to binary digit
-	jsr	pS0c81
+	jsr	part_num_to_part_table_offset
 	sta	D0901
 	bit	D0900
 	bmi	pL0a7d
@@ -2104,12 +2114,12 @@ pL0af1:	jsr	bell12
 pD0af7:	cmd_ent	'N',p_cmd_name
 	cmd_ent	'C',p_cmd_clear		; Clear a partition
 	cmd_ent	'S',p_cmd_size		; change Size of a partition
-	cmd_ent ch_cr,p_cmd_boot	; boot partition
+	cmd_ent char_cr,p_cmd_boot	; boot partition
 	cmd_ent	key_left,p_cmd_up
 	cmd_ent	key_up,p_cmd_up
 	cmd_ent key_down,p_cmd_down
 	cmd_ent	key_right,p_cmd_down
-	cmd_ent	ch_esc,p_cmd_exit	; quit
+	cmd_ent	char_esc,p_cmd_exit	; quit
 	cmd_ent	'R',p_cmd_reconfigure	; Reconfigure
 	fcb	$00			; end of table
 
@@ -2138,7 +2148,7 @@ pL0b33:	jsr	pS0dd7
 p_cmd_up:
 	lda	D0901
 	sec
-	sbc	#$18
+	sbc	#partition_table_entry_size
 pL0b3f:	cmp	#$e0
 	bcs	L0b46
 	sta	D0901
@@ -2147,7 +2157,7 @@ L0b46:	jmp	pL0a7d
 p_cmd_down:
 	lda	D0901
 	clc
-	adc	#$18
+	adc	#partition_table_entry_size
 	bcc	pL0b3f
 
 p_cmd_name:
@@ -2171,7 +2181,7 @@ p_cmd_size:
 	beq	pL0bea
 	tya
 	clc
-	adc	#$18
+	adc	#partition_table_entry_size
 	tay
 	cpy	#$e0
 	bcs	pL0bea
@@ -2230,16 +2240,25 @@ p_cmd_clear:
 	inc	D0805,x
 pL0c00:	jmp	pL0a7d
 
+
+; display one parition table entry
 pS0c03:	tya
+
 	pha
-	jsr	pS0c81
+	jsr	part_num_to_part_table_offset
 	pha
+
+; set inverse if this parition is active
 	ldx	#$ff
 	cmp	D0901
 	bne	pL0c12
 	ldx	#$3f
-pL0c12:	stx	Z32
+pL0c12:	stx	invflg
+
+; indent two spaces
 	jsr	print_two_spaces
+
+; output paritition number, two more spaces
 	tya
 	clc
 	adc	#$b1
@@ -2261,7 +2280,7 @@ pL0c2d:	jsr	cout
 	jsr	print_two_spaces
 	pla
 
-; output partition size in pages, followed by two spaces
+; output partition size in KiB, followed by two spaces
 	pha
 	tay
 	lda	D0802,y
@@ -2270,7 +2289,7 @@ pL0c2d:	jsr	cout
 	sta	Z3e
 	jsr	Scb9b
 	lda	#$ff
-	sta	Z32
+	sta	invflg
 	jsr	print_two_spaces
 	pla
 
@@ -2316,7 +2335,9 @@ print_two_spaces:
 	jmp	cout
 
 
-pS0c81:	sta	D0902
+; get offset into first RAMdisk page of a parition table entry
+part_num_to_part_table_offset:
+	sta	D0902
 	asl
 	adc	D0902
 	asl
@@ -2375,7 +2396,7 @@ pL0cb8:	iny		; advance pointer
 ; most common letters of the English language, in an arbitrary
 ; permutation that might be intended to confuse reverse-engineers.
 pD0cbe:	fcb	$00		; escape to second table
-	fcb	ch_cr+$80	; carriage return
+	fcb	char_cr+$80	; carriage return
 	fcb	$01		; two spaces
 	fcsm	"GLITCH REASO"
 
@@ -2512,9 +2533,9 @@ pL0e54:	sta	D0908,x
 pL0e5b:	jsr	rdkey_uc
 	cmp	#$88
 	beq	pL0e84
-	cmp	#ch_cr+$80
+	cmp	#char_cr+$80
 	beq	pL0e82
-	cmp	#ch_esc+$80
+	cmp	#char_esc+$80
 	beq	pL0e83
 	cmp	#' '+$80
 	bcs	pL0e74
@@ -2533,11 +2554,11 @@ pL0e83:	rts
 pL0e84:	txa
 	beq	pL0e5b
 	dex
-	dec	Z24
+	dec	ch
 	lda	#$a0
 	sta	D0908,x
 	jsr	cout
-	dec	Z24
+	dec	ch
 	jmp	pL0e5b
 
 rdkey_uc:
