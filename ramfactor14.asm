@@ -212,9 +212,9 @@ shs_cur_part_size_low	equ	$06f8-$c0	; current partition size, pages, low byte
 shs_os_code		equ	$0778-$c0	; operating system code
 shs_os_check		equ	$07f8-$c0	; operating system check code
 
-D0800	equ	$0800
-L0801	equ	$0801
-D0900	equ	$0900
+
+bootstrap_load_addr	equ	$0800
+bootstrap_entry_addr	equ	bootstrap_load_addr+1
 
 ram_application_base	equ	$0a00
 
@@ -370,7 +370,7 @@ Lcn6e:	lda	shs_idx_part_data,y
 Scn7b:	jsr	Sca9a
 	jsr	Scaeb
 	ldy	#$c0+slotnum	; high byte of slot ROM base c100
-	lda	L0801
+	lda	bootstrap_entry_addr
 	beq	Lcn9a
 	lda	shs_os_check,y
 	eor	#$5a
@@ -378,7 +378,7 @@ Scn7b:	jsr	Sca9a
 	bne	Lcn9a
 	sta	proflag
 	ldx	#(slotnum*$10)
-	jmp	L0801
+	jmp	bootstrap_entry_addr
 
 Lcn9a:	rts
 
@@ -885,11 +885,11 @@ Lcacd:	lda	hw_reg_addr_mid-hw_reg_offset,x
 	public	Scaeb	; referenced from slot, pmgr
 Scaeb:	ldy	#$00
 Lcaed:	lda	hw_reg_data-hw_reg_offset,x
-	sta	D0800,y
+	sta	bootstrap_load_addr,y
 	iny
 	bne	Lcaed
 Lcaf6:	lda	hw_reg_data-hw_reg_offset,x
-	sta	D0900,y
+	sta	bootstrap_load_addr+$0100,y
 	iny
 	bne	Lcaf6
 	rts
@@ -1965,17 +1965,23 @@ b1_partmgr	equ	*-$1000
 	section partmgr
 	phase	ram_application_base
 
-D0800	equ	$0800
-D0801	equ	$0801
-D0802	equ	$0802
-D0803	equ	$0803
-D0804	equ	$0804
-D0805	equ	$0805
-D0808	equ	$0808
-D0818	equ	$0818
-D0819	equ	$0819
-D081a	equ	$081a
-D081b	equ	$081b
+
+; parition table buffer
+pt_buffer  equ	 $0800
+D0802	equ	pt_buffer+$02
+D0803	equ	pt_buffer+$03
+
+
+part_table_entry_size	equ	$18
+
+; partition table entry addresses, must be indexed
+pte_ofs_base_addr_high	equ	$00	; parition base address high
+pte_ofs_base_addr_mid	equ	$01	; parition base address mid
+pte_ofs_size_high	equ	$02	; partition size high
+pte_ofs_size_mid	equ	$03	; parititon size mid
+pte_ofs_os_code		equ	$04	; OS code
+pte_ofs_os_check	equ	$05	; OS check (OS code xor $5a)
+pte_ofs_name		equ	$08	; partition name
 
 D0900	equ	$0900
 D0901	equ	$0901
@@ -2169,7 +2175,7 @@ p_cmd_name:
 	ldx	#$00
 	ldy	D0901
 pL0b62:	lda	D0908,x
-	sta	D0808,y
+	sta	pt_buffer+pte_ofs_name,y
 	iny
 	inx
 	cpx	#$10
@@ -2198,11 +2204,11 @@ p_cmd_size:
 	rol	D0905
 	clc
 	ldy	D0901
-	lda	D0803,y
-	adc	D081b,y
+	lda	pt_buffer+pte_ofs_size_mid,y
+	adc	pt_buffer+part_table_entry_size+pte_ofs_size_mid,y
 	sta	D0906
-	lda	D0802,y
-	adc	D081a,y
+	lda	pt_buffer+pte_ofs_size_high,y
+	adc	pt_buffer+part_table_entry_size+pte_ofs_size_high,y
 	sta	D0907
 	sec
 	lda	D0906
@@ -2211,18 +2217,18 @@ p_cmd_size:
 	lda	D0907
 	sbc	D0905
 	bcc	pL0be6
-	sta	D081a,y
+	sta	pt_buffer+part_table_entry_size+pte_ofs_size_high,y
 	pla
-	sta	D081b,y
+	sta	pt_buffer+part_table_entry_size+pte_ofs_size_mid,y
 	clc
 	lda	D0904
-	sta	D0803,y
-	adc	D0801,y
-	sta	D0819,y
+	sta	pt_buffer+pte_ofs_size_mid,y
+	adc	pt_buffer+pte_ofs_base_addr_mid,y
+	sta	pt_buffer+part_table_entry_size+pte_ofs_base_addr_mid,y
 	lda	D0905
-	sta	D0802,y
-	adc	D0800,y
-	sta	D0818,y
+	sta	pt_buffer+pte_ofs_size_high,y
+	adc	pt_buffer+pte_ofs_base_addr_high,y
+	sta	pt_buffer+part_table_entry_size+pte_ofs_base_addr_high,y
 	jmp	pL0a7d
 
 pL0be6:	pla
@@ -2237,7 +2243,7 @@ p_cmd_clear:
 	jsr	pS0e43
 	bne	pL0c00
 	ldx	D0901
-	inc	D0805,x
+	inc	pt_buffer+pte_ofs_os_check,x
 pL0c00:	jmp	pL0a7d
 
 
@@ -2270,7 +2276,7 @@ pL0c12:	stx	invflg
 	pha
 	tay
 	ldx	#$10
-pL0c26:	lda	D0808,y
+pL0c26:	lda	pt_buffer+pte_ofs_name,y
 	bne	pL0c2d
 	lda	#' '+$80	; NUL chars converted to spaces
 pL0c2d:	jsr	cout
@@ -2283,9 +2289,9 @@ pL0c2d:	jsr	cout
 ; output partition size in KiB, followed by two spaces
 	pha
 	tay
-	lda	D0802,y
+	lda	pt_buffer+pte_ofs_size_high,y
 	sta	Z3f
-	lda	D0803,y
+	lda	pt_buffer+pte_ofs_size_mid,y
 	sta	Z3e
 	jsr	Scb9b
 	lda	#$ff
@@ -2295,9 +2301,9 @@ pL0c2d:	jsr	cout
 
 ; output paritition type
 	tay
-	lda	D0805,y
+	lda	pt_buffer+pte_ofs_os_check,y
 	eor	#$5a
-	cmp	D0804,y
+	cmp	pt_buffer+pte_ofs_os_code,y
 	beq	pL0c5c
 	lda	#$01		; if the parition type is invalid (code xor check != 0x5a), consider it clear ($01 not in table)
 
@@ -2476,7 +2482,7 @@ pS0dd7:	lda	D0901
 
 pS0de8:	jsr	Sca8b
 	tay
-pL0dec:	lda	D0800,y
+pL0dec:	lda	pt_buffer+pte_ofs_base_addr_high,y
 	sta	hw_reg_data-hw_reg_offset,x
 	iny
 	bne	pL0dec
@@ -2485,8 +2491,8 @@ pL0dec:	lda	D0800,y
 pL0df6:	jsr	pS0dd7
 	jsr	pS0e43
 	bne	pL0e09
-	lda	D0802,y
-	ora	D0803,y
+	lda	pt_buffer+pte_ofs_size_high,y
+	ora	pt_buffer+pte_ofs_size_mid,y
 	beq	pL0e09
 pL0e06:	jsr	pS0e27
 pL0e09:	ldy	#p_msg_idx_cannot_boot
@@ -2513,14 +2519,14 @@ pL0e2f:	sty	L00+1
 
 pL0e36:	ldx	#$02
 	lda	#$00
-pL0e3a:	sta	D0800,x
+pL0e3a:	sta	pt_buffer+pte_ofs_base_addr_high,x
 	dex
 	bpl	pL0e3a
 	jmp	(resetvec)
 
 pS0e43:	ldy	D0901
-pS0e46:	lda	D0804,y
-	eor	D0805,y
+pS0e46:	lda	pt_buffer+pte_ofs_os_code,y
+	eor	pt_buffer+pte_ofs_os_check,y
 	cmp	#$5a
 	rts
 
