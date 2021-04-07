@@ -249,17 +249,17 @@ hw_reg_rom_bank		equ	$c08f	; bank select, add slot*$10
 
 Dcfff	equ	$cfff	; turn off C800 shared ROM space
 
-sloop	equ	$faba
-init	equ	$fb2f
-bell12	equ	$fbe2
-clreop	equ	$fc42
-home	equ	$fc58
-rdkey	equ	$fd0c
-crout	equ	$fd8e
-prbyte	equ	$fdda
-cout	equ	$fded
-setkbd	equ	$fe89
-setvid	equ	$fe93
+sloop		equ	$faba
+init		equ	$fb2f
+bell12		equ	$fbe2
+clreop		equ	$fc42
+home		equ	$fc58
+rdkey		equ	$fd0c
+crout		equ	$fd8e
+prbyte		equ	$fdda
+cout		equ	$fded
+setkbd		equ	$fe89
+setvid		equ	$fe93
 resetvec	equ	$fffc
 
 
@@ -276,6 +276,9 @@ err_bad_block_num	equ	$2d
 err_offline		equ	$2f
 ; Protocol Converter error codes $30..$3f are device-specific errors
 ; Protocol Converter error codes $50..$7f are device-specific non-fatal errors
+
+
+check_xor_val equ	$5a	; value XORed with various things to generate a check byte
 
 
 	irp	banknum,0,1
@@ -310,7 +313,7 @@ slot0:	cmp	#$20	; $Cn01 = $20
 	cmp	#$00	; $cn07 = $00
 	bcs	boot4	; always taken
 
-; cn0a - RamFactor diagnostic (same entry point as Slinky memory test)
+; cn0a - RamFactor diagnostic (same entry point as Apple's Slinky memory test)
 	jsr	Scn16
 	jmp	Lcn9b
 
@@ -373,7 +376,7 @@ Scn7b:	jsr	Sca9a
 	lda	bootstrap_entry_addr
 	beq	Lcn9a
 	lda	shs_os_check,y
-	eor	#$5a
+	eor	#check_xor_val
 	cmp	shs_os_code,y
 	bne	Lcn9a
 	sta	proflag
@@ -400,7 +403,7 @@ Lcna3:	lda	Dcnd5,y
 
 	php
 	sei
-	stx	hw_reg_rom_bank+(slotnum*$10)	; set bank 1 ?
+	stx	hw_reg_rom_bank+(slotnum*$10)	; set bank 1
 	ldx	#(slotnum*$10)+hw_reg_offset
 
 	ldy	#$00	; set Z3e to point to RAM where diag/partmgr load
@@ -762,11 +765,11 @@ Lc9df:	ldy	mslot
 	cmp	#$ae
 	bne	Lca31
 	eor	hw_reg_data-hw_reg_offset,x
-	cmp	#$5a
+	cmp	#check_xor_val
 	bne	Lca31
 	lda	hw_reg_data-hw_reg_offset,x
 	sta	shs_idx_part_data,y
-	eor	#$5a
+	eor	#check_xor_val
 	cmp	hw_reg_data-hw_reg_offset,x
 	bne	Lca31
 	lda	hw_reg_data-hw_reg_offset,x
@@ -789,7 +792,7 @@ Lc9df:	ldy	mslot
 
 Lca31:	lda	shs_os_code,y		; is the OS code valid?
 	eor	shs_os_check,y
-	cmp	#$5a
+	cmp	#check_xor_val
 	beq	Lca73			; yes, don't have to probe
 
 	jsr	clear_ram_ptr
@@ -812,7 +815,7 @@ Lca31:	lda	shs_os_code,y		; is the OS code valid?
 	bne	Lca6a
 Lca61:	txa				; store OS code
 	sta	shs_os_code,y
-	eor	#$5a
+	eor	#check_xor_val
 	sta	shs_os_check,y
 
 Lca6a:	jsr	Scb00
@@ -1207,7 +1210,7 @@ Scd3d:	ldy	mslot
 	lda	shg_0478
 	beq	Lcd55
 Lcd4c:	lda	shs_os_check,y
-	eor	#$5a
+	eor	#check_xor_val
 	cmp	shs_os_code,y
 	sec
 Lcd55:	rts
@@ -1278,10 +1281,10 @@ Lcdc1:	jsr	Scdfb
 	sta	hw_reg_addr_low-hw_reg_offset,x
 	lda	shs_os_code,y
 	sta	hw_reg_data-hw_reg_offset,x
-	eor	#$5a
+	eor	#check_xor_val
 	sta	hw_reg_data-hw_reg_offset,x
 Lcde2:	lda	shs_os_code,y
-	eor	#$5a
+	eor	#check_xor_val
 	sta	shs_os_check,y
 	clc
 	rts
@@ -1980,7 +1983,7 @@ pte_ofs_base_addr_mid	equ	$01	; parition base address mid
 pte_ofs_size_high	equ	$02	; partition size high
 pte_ofs_size_mid	equ	$03	; parititon size mid
 pte_ofs_os_code		equ	$04	; OS code
-pte_ofs_os_check	equ	$05	; OS check (OS code xor $5a)
+pte_ofs_os_check	equ	$05	; OS check
 pte_ofs_name		equ	$08	; partition name
 
 D0900	equ	$0900
@@ -1993,18 +1996,12 @@ D0906	equ	$0906
 D0907	equ	$0907
 D0908	equ	$0908
 
-bell12	equ	$fbe2
-clreop	equ	$fc42
-home	equ	$fc58
-rdkey	equ	$fd0c
-crout	equ	$fd8e
-cout	equ	$fded
-
 
 partition_table_entry_size	equ	24
 
 
 partmgr:
+; check for valid parition table
 	jsr	Sca8b
 	lda	hw_reg_data-hw_reg_offset,x
 	cmp	#$ae
@@ -2016,11 +2013,15 @@ partmgr:
 	eor	hw_reg_data-hw_reg_offset,x
 	cmp	#$5a
 	beq	pL0a6b
-pL0a1b:	ldy	mslot
+
+; no valid partition table found, will need to create a partition table
+pL0a1b:	ldy	mslot			; are the screen holes valid?
 	lda	shs_os_code,y
 	eor	shs_os_check,y
 	cmp	#$5a
-	bne	pL0a3f
+	bne	pL0a3f			; screen holes were not valid
+
+; screen holes were valid, ask user if partition table should be installed
 	jsr	home
 	ldy	#p_msg_idx_warning_installing
 	jsr	p_msgout
@@ -2029,8 +2030,9 @@ pL0a1b:	ldy	mslot
 	jsr	rdkey_uc
 	cmp	#'Y'+$80
 	beq	pL0a3f
-	jmp	pL0e06
+	jmp	pL0e06			; user says no; reboot?
 
+; install a parititon table
 pL0a3f:	jsr	Sca8b
 	ldy	#$aa
 	jsr	Scdfb
@@ -2050,6 +2052,7 @@ pL0a3f:	jsr	Sca8b
 	sta	hw_reg_data-hw_reg_offset,x
 	lda	#$fc
 	sta	hw_reg_data-hw_reg_offset,x
+
 pL0a6b:	jsr	clear_ram_ptr
 	jsr	Scaeb
 	lda	D0802
@@ -2057,9 +2060,9 @@ pL0a6b:	jsr	clear_ram_ptr
 	jsr	home
 pL0a7a:	lsr	D0900
 
-pL0a7d:	lda	#$00	; home the cursor without clearing the screen
+pm_main_loop:	lda	#$00	; home the cursor without clearing the screen
 	sta	ch
-	sta	CV
+	sta	Cv
 
 	ldy	#p_msg_idx_heading
 	jsr	p_msgout
@@ -2092,7 +2095,7 @@ pL0aee:	jsr	p_msgout
 	jsr	part_num_to_part_table_offset
 	sta	D0901
 	bit	D0900
-	bmi	pL0a7d
+	bmi	pm_main_loop
 	jmp	pL0df6
 
 pL0acf:	sta	D0902
@@ -2114,7 +2117,7 @@ pL0adb:	iny
 	rts
 
 pL0af1:	jsr	bell12
-	jmp	pL0a7d
+	jmp	pm_main_loop
 
 
 pD0af7:	cmd_ent	'N',p_cmd_name
@@ -2141,7 +2144,7 @@ pL0b1e:	jsr	pS0de8
 p_cmd_reconfigure:
 	sec
 	ror	D0900
-	jmp	pL0a7d
+	jmp	pm_main_loop
 
 p_cmd_exit:
 	bit	D0900
@@ -2158,7 +2161,7 @@ p_cmd_up:
 pL0b3f:	cmp	#$e0
 	bcs	L0b46
 	sta	D0901
-L0b46:	jmp	pL0a7d
+L0b46:	jmp	pm_main_loop
 
 p_cmd_down:
 	lda	D0901
@@ -2180,7 +2183,7 @@ pL0b62:	lda	D0908,x
 	inx
 	cpx	#$10
 	bcc	pL0b62
-pL0b6e:	jmp	pL0a7d
+pL0b6e:	jmp	pm_main_loop
 
 p_cmd_size:
 	jsr	pS0e43
@@ -2229,7 +2232,7 @@ p_cmd_size:
 	sta	pt_buffer+pte_ofs_size_high,y
 	adc	pt_buffer+pte_ofs_base_addr_high,y
 	sta	pt_buffer+part_table_entry_size+pte_ofs_base_addr_high,y
-	jmp	pL0a7d
+	jmp	pm_main_loop
 
 pL0be6:	pla
 	ldy	#$d5
@@ -2237,14 +2240,14 @@ pL0be6:	pla
 pL0bea:	ldy	#$c9
 	jsr	p_msgout
 	jsr	rdkey
-	jmp	pL0a7d
+	jmp	pm_main_loop
 
 p_cmd_clear:
 	jsr	pS0e43
 	bne	pL0c00
 	ldx	D0901
 	inc	pt_buffer+pte_ofs_os_check,x
-pL0c00:	jmp	pL0a7d
+pL0c00:	jmp	pm_main_loop
 
 
 ; display one parition table entry
@@ -2480,6 +2483,7 @@ pS0dd7:	lda	D0901
 	jsr	pS0de8
 	jmp	Lc9df
 
+; write parition table back to card memory
 pS0de8:	jsr	Sca8b
 	tay
 pL0dec:	lda	pt_buffer+pte_ofs_base_addr_high,y
