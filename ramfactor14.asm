@@ -192,15 +192,15 @@ hw_reg_offset	equ	$88
 ; use.
 ; BEWARE: Even scratch use is questionable if interrupts are in use,
 ; because an interrupt hander might use these.
-shg_0478	equ	$0478
-shg_04f8	equ	$04f8
-shg_0578	equ	$0578
-shg_05f8	equ	$05f8
-mslot1088	equ	$0778		; stores (slot*$10)+hw_reg_offset
+shg_cur_part_size_high	equ	$0478
+shg_cur_part_size_low	equ	$04f8
+shg_0578		equ	$0578
+shg_05f8		equ	$05f8
+mslot1088		equ	$0778		; stores (slot*$10)+hw_reg_offset
 
 ; mslot appears to be the only global screen hole for which Apple
 ; has defined a function.
-mslot		equ	$07f8		; stores $Cn, where n is the slot number
+mslot			equ	$07f8		; stores $Cn, where n is the slot number
 
 ; screen holes, indexed by $Cn, where n is slot number (1 through 7)
 shs_card_block_count	equ	$0478-$c0	; # blocks of whole card, divided by 256
@@ -508,7 +508,7 @@ Lc818:	lda	(Z45),y
 	inc	D010c,x
 Lc825:	dey
 	bne	Lc818
-	sty	shg_04f8
+	sty	shg_cur_part_size_low
 	sty	shg_0578
 	sty	shg_05f8
 	tax
@@ -546,7 +546,7 @@ ret_err_bad_cmd:
 	skip2
 ret_err_bad_pcnt:
 	lda	#err_bad_pcnt
-LC863:	sta	shg_04f8
+LC863:	sta	shg_cur_part_size_low
 Lc866:	ldx	#$00
 Lc868:	pla
 	sta	Z42,x
@@ -555,7 +555,7 @@ Lc868:	pla
 	bcc	Lc868
 	ldy	shg_05f8
 	ldx	shg_0578
-	lda	shg_04f8
+	lda	shg_cur_part_size_low
 	bne	Lc87c
 	clc
 Lc87c:	rts
@@ -1040,9 +1040,9 @@ Lcc0c:	tya
 
 prodos_status:
 	ldy	mslot
-	jsr	Scfe4
-	ldy	shg_0478
-	ldx	shg_04f8
+	jsr	copy_s2g_part_size
+	ldy	shg_cur_part_size_high
+	ldx	shg_cur_part_size_low
 prodos_format
 :	lda	#$00
 	clc
@@ -1169,12 +1169,14 @@ Lccf5:	tya
 	sta	(Z48),y
 	rts
 
+
+; check DOS parition size
 Sccfb:	ldy	mslot
 	ldx	#$03
 Lcd00:	lda	shs_cur_part_size_low,y
-	cmp	Dcd31,x
+	cmp	valid_dos_part_size_low,x
 	lda	shs_cur_part_size_high,y
-	sbc	Dcd2d,x
+	sbc	valid_dos_part_size_high,x
 	bcs	Lcd12
 	dex
 	bpl	Lcd00
@@ -1195,48 +1197,68 @@ Scd16:	clc
 	sta	shs_part_base_high,y
 	rts
 
-Dcd2d:	fcb	$02,$04,$06,$0c
-Dcd31:	fcb	$30,$60,$40,$80
+; valid DOS parition sizes
+valid_dos_part_size_high:
+	fcb	(140*4)>>8
+	fcb	(280*4)>>8
+	fcb	(400*4)>>8
+	fcb	(800*4)>>8
+
+valid_dos_part_size_low:
+	fcb	(140*4)&$ff
+	fcb	(280*4)&$ff
+	fcb	(400*4)&$ff
+	fcb	(800*4)&$ff
+
+
 Dcd35:	fcb	$23,$32
 Dcd37:	fcb	$10,$20
 Dcd39:	fcb	$02,$06
 Dcd3b:	fcb	$30,$40
 
 
-Scd3d:	ldy	mslot
-	jsr	Scfe4
+Scd3d:
+; is partition size at least 4KB?
+; return:
+;   carry clear if paritition too small
+;   carry set, zero clear if size OK but unknwon OS
+;   carry set, zero set if size and OS both OK, A = OS
+	ldy	mslot
+	jsr	copy_s2g_part_size
 	cmp	#$10
 	bcs	Lcd4c
-	lda	shg_0478
+	lda	shg_cur_part_size_high
 	beq	Lcd55
+
 Lcd4c:	lda	shs_os_check,y
 	eor	#check_xor_val
 	cmp	shs_os_code,y
 	sec
 Lcd55:	rts
 
-Scd56:	jsr	Scd3d
-	bcc	Lcd97
-	bne	Lcd63
-	cmp	#$33
-	bne	Lcd97
+
+Scd56:	jsr	Scd3d		; check parition size and OS
+	bcc	Lcd97		;   parititon too small
+	bne	Lcd63		;   parition size OK, but OS unknown
+	cmp	#os_dos
+	bne	Lcd97		;   not a DOS partition
 	clc
 	rts
 
-Lcd63:	lda	#$33
+Lcd63:	lda	#os_dos		; set OS to DOS (but don't yet set OS check)
 	sta	shs_os_code,y
-	jsr	Sccfb
+	jsr	Sccfb		; check DOS parition size
 	bmi	Lcd97
 	bcc	Lcd91
 	lda	shs_part_base_mid,y
 	pha
 	lda	shs_part_base_high,y
 	pha
-	stx	shg_04f8
+	stx	shg_cur_part_size_low
 	jsr	Scd16
 	ldy	Dcfe2,x
 	jsr	Scdfb
-	ldx	shg_04f8
+	ldx	shg_cur_part_size_low
 	ldy	mslot
 	pla
 	sta	shs_part_base_high,y
@@ -1313,9 +1335,9 @@ Sce06:	lda	#$00
 
 Lce0c:	tya
 	pha
-	lda	shg_04f8
+	lda	shg_cur_part_size_low
 	cmp	#$01
-	lda	shg_0478
+	lda	shg_cur_part_size_high
 	sbc	#$00
 	lsr
 	lsr
@@ -1417,9 +1439,9 @@ Lceaf:	pha
 	bne	Lceaf
 	rts
 
-Lcec5:	lda	shg_04f8
+Lcec5:	lda	shg_cur_part_size_low
 	sta	hw_reg_data-hw_reg_offset,x
-	lda	shg_0478
+	lda	shg_cur_part_size_high
 Lcece:	sta	hw_reg_data-hw_reg_offset,x
 	rts
 
@@ -1443,7 +1465,7 @@ Lced9:	lda	#$00
 
 Lcef4:	tya
 	pha
-	ldy	shg_0478
+	ldy	shg_cur_part_size_high
 	beq	Lcf08
 	nop
 Lcefc:	tya
@@ -1454,7 +1476,7 @@ Lcefc:	tya
 	tay
 	dey
 	bne	Lcefc
-Lcf08:	lda	shg_04f8
+Lcf08:	lda	shg_cur_part_size_low
 	pha
 	lsr
 	lsr
@@ -1510,12 +1532,14 @@ Dcf30:	fcb	$01,$00,$00,$02,$02,$01,$02,$00
 
 Dcfe2:	fcb	$30,$5c
 
-Scfe4:	lda	shs_cur_part_size_high,y
+
+copy_s2g_part_size:
+	lda	shs_cur_part_size_high,y
 	lsr
-	sta	shg_0478
+	sta	shg_cur_part_size_high
 	lda	shs_cur_part_size_low,y
 	ror
-	sta	shg_04f8
+	sta	shg_cur_part_size_low		; leaves part_size_low in A
 	rts
 
 	fillto	$d000,$ff
