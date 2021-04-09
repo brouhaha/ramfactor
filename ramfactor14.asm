@@ -192,11 +192,14 @@ hw_reg_offset	equ	$88
 ; use.
 ; BEWARE: Even scratch use is questionable if interrupts are in use,
 ; because an interrupt hander might use these.
-shg_cur_part_size_high	equ	$0478
-shg_cur_part_size_low	equ	$04f8
+shg_0478		equ	$0478
+shg_04f8		equ	$04f8
+
 shg_0578		equ	$0578
 shg_05f8		equ	$05f8
+
 mslot1088		equ	$0778		; stores (slot*$10)+hw_reg_offset
+
 
 ; mslot appears to be the only global screen hole for which Apple
 ; has defined a function.
@@ -508,7 +511,7 @@ Lc818:	lda	(Z45),y
 	inc	D010c,x
 Lc825:	dey
 	bne	Lc818
-	sty	shg_cur_part_size_low
+	sty	shg_04f8
 	sty	shg_0578
 	sty	shg_05f8
 	tax
@@ -546,7 +549,7 @@ ret_err_bad_cmd:
 	skip2
 ret_err_bad_pcnt:
 	lda	#err_bad_pcnt
-LC863:	sta	shg_cur_part_size_low
+LC863:	sta	shg_04f8
 Lc866:	ldx	#$00
 Lc868:	pla
 	sta	Z42,x
@@ -555,7 +558,7 @@ Lc868:	pla
 	bcc	Lc868
 	ldy	shg_05f8
 	ldx	shg_0578
-	lda	shg_cur_part_size_low
+	lda	shg_04f8
 	bne	Lc87c
 	clc
 Lc87c:	rts
@@ -1041,8 +1044,8 @@ Lcc0c:	tya
 prodos_status:
 	ldy	mslot
 	jsr	copy_s2g_part_size
-	ldy	shg_cur_part_size_high
-	ldx	shg_cur_part_size_low
+	ldy	shg_0478
+	ldx	shg_04f8
 prodos_format
 :	lda	#$00
 	clc
@@ -1213,6 +1216,7 @@ valid_dos_part_size_low:
 
 Dcd35:	fcb	$23,$32
 Dcd37:	fcb	$10,$20
+
 Dcd39:	fcb	$02,$06
 Dcd3b:	fcb	$30,$40
 
@@ -1227,7 +1231,7 @@ Scd3d:
 	jsr	copy_s2g_part_size
 	cmp	#$10
 	bcs	Lcd4c
-	lda	shg_cur_part_size_high
+	lda	shg_0478
 	beq	Lcd55
 
 Lcd4c:	lda	shs_os_check,y
@@ -1254,11 +1258,11 @@ Lcd63:	lda	#os_dos		; set OS to DOS (but don't yet set OS check)
 	pha
 	lda	shs_part_base_high,y
 	pha
-	stx	shg_cur_part_size_low
+	stx	shg_04f8
 	jsr	Scd16
 	ldy	Dcfe2,x
 	jsr	Scdfb
-	ldx	shg_cur_part_size_low
+	ldx	shg_04f8
 	ldy	mslot
 	pla
 	sta	shs_part_base_high,y
@@ -1335,9 +1339,9 @@ Sce06:	lda	#$00
 
 Lce0c:	tya
 	pha
-	lda	shg_cur_part_size_low
+	lda	shg_04f8
 	cmp	#$01
-	lda	shg_cur_part_size_high
+	lda	shg_0478
 	sbc	#$00
 	lsr
 	lsr
@@ -1439,9 +1443,9 @@ Lceaf:	pha
 	bne	Lceaf
 	rts
 
-Lcec5:	lda	shg_cur_part_size_low
+Lcec5:	lda	shg_04f8
 	sta	hw_reg_data-hw_reg_offset,x
-	lda	shg_cur_part_size_high
+	lda	shg_0478
 Lcece:	sta	hw_reg_data-hw_reg_offset,x
 	rts
 
@@ -1465,7 +1469,7 @@ Lced9:	lda	#$00
 
 Lcef4:	tya
 	pha
-	ldy	shg_cur_part_size_high
+	ldy	shg_0478
 	beq	Lcf08
 	nop
 Lcefc:	tya
@@ -1476,7 +1480,7 @@ Lcefc:	tya
 	tay
 	dey
 	bne	Lcefc
-Lcf08:	lda	shg_cur_part_size_low
+Lcf08:	lda	shg_04f8
 	pha
 	lsr
 	lsr
@@ -1536,10 +1540,10 @@ Dcfe2:	fcb	$30,$5c
 copy_s2g_part_size:
 	lda	shs_cur_part_size_high,y
 	lsr
-	sta	shg_cur_part_size_high
+	sta	shg_0478
 	lda	shs_cur_part_size_low,y
 	ror
-	sta	shg_cur_part_size_low		; leaves part_size_low in A
+	sta	shg_04f8		; leaves part_size_low in A
 	rts
 
 	fillto	$d000,$ff
