@@ -221,9 +221,9 @@ bootstrap_entry_addr	equ	bootstrap_load_addr+1
 
 ram_application_base	equ	$0a00
 
-Dbd12	equ	$bd12	; RWTS patch loc, three bytes
+rwts_patch		equ	$bd12	; RWTS patch loc, three bytes
 
-proflag	equ	$bf00	; used to detect OS
+proflag		equ	$bf00	; used to detect OS
 os_pascal	equ	$00
 os_prodos	equ	$4c
 os_dos		equ	$33
@@ -339,20 +339,21 @@ romsel:	ldy	#$c0+slotnum
 	stx	mslot1088
 	jmp	Lc9df
 
-boot4:	lda	#$c0+slotnum
+boot4:	lda	#$c0+slotnum	; did we get here from IN# or equiv?
 	cmp	kswl+1
 	php
 	jsr	Scn16
 	plp
 	bne	Lcn60
-	jsr	Scdec
+
+	jsr	Scdec		; yes
 	beq	Lcn60
 
-	lda	#$20	; Patch RWTS with jsr $eaea ???
-	sta	Dbd12
-	lda	#$ea
-	sta	Dbd12+1
-	sty	Dbd12+2
+	lda	#$20		; Patch RWTS
+	sta	rwts_patch
+	lda	#slot_rwts&$ff
+	sta	rwts_patch+1
+	sty	rwts_patch+2
 
 	ldx	#$00
 	lda	#$8d
@@ -447,17 +448,18 @@ slot_prodos_x:
 	jsr	romsel
 	jmp	prodos
 	
-; cnea
-	cmp	#(slotnum*$10)
-	beq	Lcnf2
-	tax
-	ldy	#$0f
-	rts
+slot_rwts:
+	cmp	#(slotnum*$10)	; A = our slot * 10?
+	beq	Lcnf2		;   yes
+	tax			; no, execute the instructions the
+	ldy	#$0f		; patch overwrote
+	rts			; and return
 
-Lcnf2:	pla
+Lcnf2:	pla			; discard the patch return address
 	pla
 	jsr	romsel
-	jmp	Lcc6f
+	jmp	rwts
+
 
 	fcb	$ae	; distinguishes vendor of mem exp card
 			; $ae = Applied Engineering
@@ -1096,8 +1098,9 @@ Scc58:	lda	#$00
 	jsr	Sca9d
 Lcc6e:	rts
 
-	public	Lcc6f	; referenced from slot
-Lcc6f:	jsr	Scd56
+
+	public	rwts	; referenced from slot
+rwts:	jsr	Scd56
 	ldy	#$10
 	bcs	Lcce0
 	jsr	Sccfb
