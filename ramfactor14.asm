@@ -155,10 +155,35 @@ Z49	equ	$49
 Z4a	equ	$4a
 Z4b	equ	$4b
 
+rwtsiob	equ	Z48
+rwtsbuf	equ	Z3e
+
+rwts_iob_idx_slot	equ	$01
+rwts_iob_idx_drive	equ	$02
+rwts_iob_idx_volume	equ	$03
+rwts_iob_idx_track	equ	$04
+rwts_iob_idx_sector	equ	$05
+rwts_iob_idx_buffer	equ	$08
+rwts_iob_idx_command	equ	$0c
+rwts_iob_idx_result	equ	$0d
+rwts_iob_idx_prev_vol	equ	$0e
+rwts_iob_idx_prev_slot	equ	$0f
+rwts_iob_idx_prev_drive	equ	$10
+
+rwts_err_none		equ	$00
+rwts_err_init		equ	$08
+rwts_err_write_prot	equ	$10
+rwts_err_vol_mismatch	equ	$20
+rwts_err_drive		equ	$40
+rwts_err_read		equ	$80	; Obsolete according to Beneath Apple DOS
+
+
 D010b	equ	$010b
 D010c	equ	$010c
 D01a9	equ	$01a9
-D0200	equ	$0200
+
+klinbuf	equ	$0200
+
 D0400	equ	$0400
 
 
@@ -346,20 +371,23 @@ boot4:	lda	#$c0+slotnum	; did we get here from IN# or equiv?
 	plp
 	bne	Lcn60
 
-	jsr	Scdec		; yes
-	beq	Lcn60
+; we got here from IN# or equivalent
+	jsr	Scdec		; are we running Pascal or ProDOS?
+	beq	Lcn60		;   yes
 
-	lda	#$20		; Patch RWTS
+; not Pascal or ProDOS, so patch RWTS
+	lda	#$20
 	sta	rwts_patch
 	lda	#slot_rwts&$ff
 	sta	rwts_patch+1
 	sty	rwts_patch+2
 
 	ldx	#$00
-	lda	#$8d
-	sta	D0200
+	lda	#char_cr+$80	; return with CR, and also store in input buffer
+	sta	klinbuf
 	rts
 
+; IN# or equivalent, but running Pascal or ProDOS
 Lcn60:	lda	L00
 	bne	Lcn6e
 	cpy	L00+1
@@ -448,6 +476,9 @@ slot_prodos_x:
 	jsr	romsel
 	jmp	prodos
 	
+
+; on entry, RWTS code has stored IOB pointer into ?, and has loaded
+; the requested slot*$10 into A
 slot_rwts:
 	cmp	#(slotnum*$10)	; A = our slot * 10?
 	beq	Lcnf2		;   yes
@@ -1099,26 +1130,33 @@ Scc58:	lda	#$00
 Lcc6e:	rts
 
 
+; The RWTS IOB pointer is in Z48
 	public	rwts	; referenced from slot
 rwts:	jsr	Scd56
 	ldy	#$10
 	bcs	Lcce0
-	jsr	Sccfb
-	ldy	#$02
-	lda	(Z48),y
+
+	jsr	dos_check_partition_size
+
+	ldy	#rwts_iob_idx_drive
+	lda	(rwtsiob),y
 	sta	Z3e
 	eor	#$01
 	beq	Lcc88
-	bcc	Lccdd
+	bcc	rwts_bad_cmd
+
 	jsr	Scd16
-Lcc88:	ldy	#$0e
+
+Lcc88:	ldy	#rwts_iob_idx_prev_vol
 	lda	#$fe
-	sta	(Z48),y
-	ldy	#$04
+	sta	(rwtsiob),y
+
+	ldy	#rwts_iob_idx_track	; check track number against maximum
 	sty	Z3f
-	lda	(Z48),y
-	cmp	Dcd35,x
-	bcs	Lccdd
+	lda	(rwtsiob),y
+	cmp	dos_max_track,x
+	bcs	rwts_bad_cmd
+
 	lsr
 	ror	Z3f
 	lsr
@@ -1129,11 +1167,13 @@ Lcc88:	ldy	#$0e
 	beq	Lcca9
 	lsr
 	ror	Z3f
+
 Lcca9:	pha
-	iny
-	lda	(Z48),y
-	cmp	Dcd37,x
-	bcs	Lccdd
+	iny				; check sector number
+	lda	(rwtsiob),y
+	cmp	dos_max_sector,x
+	bcs	rwts_bad_cmd
+
 	ora	Z3f
 	pha
 	jsr	Sca8b
@@ -1142,42 +1182,55 @@ Lcca9:	pha
 	pla
 	sta	hw_reg_addr_high-hw_reg_offset,x
 	jsr	Sca9d
-	bcs	Lccdd
-	ldy	#$08
-	lda	(Z48),y
+	bcs	rwts_bad_cmd
+
+	ldy	#rwts_iob_idx_buffer	; copy buffer address to ZP
+	lda	(rwtsiob),y
 	sta	Z3e
 	iny
-	lda	(Z48),y
+	lda	(rwtsiob),y
 	sta	Z3f
-	ldy	#$0c
-	lda	(Z48),y
+
+	ldy	#rwts_iob_idx_command
+	lda	(rwtsiob),y
 	tay
-	beq	Lccf4
+	beq	rwts_seek
 	dey
-	beq	Lccec
+	beq	rwts_read
 	dey
-	beq	Lcce2
-Lccdd:	sec
-	ldy	#$80
-Lcce0:	bne	Lccf5
-Lcce2:	lda	(Z3e),y
+	beq	rwts_write
+
+rwts_bad_cmd:
+	sec
+	ldy	#rwts_err_read
+Lcce0:	bne	rwts_done
+
+rwts_write:
+	lda	(Z3e),y
 	sta	hw_reg_data-hw_reg_offset,x
 	iny
-	bne	Lcce2
-	beq	Lccf4
-Lccec:	lda	hw_reg_data-hw_reg_offset,x
+	bne	rwts_write
+	beq	rwts_seek
+
+rwts_read:
+	lda	hw_reg_data-hw_reg_offset,x
 	sta	(Z3e),y
 	iny
-	bne	Lccec
-Lccf4:	clc
-Lccf5:	tya
-	ldy	#$0d
-	sta	(Z48),y
+	bne	rwts_read
+rwts_seek:
+	clc
+
+rwts_done:
+	tya
+	ldy	#rwts_iob_idx_result
+	sta	(rwtsiob),y
 	rts
 
 
 ; check DOS parition size
-Sccfb:	ldy	mslot
+; returns with 0 in X for 140 KiB drive(s), 1 in X for 400 KiB drive(s)
+dos_check_partition_size:
+	ldy	mslot
 	ldx	#$03
 Lcd00:	lda	shs_cur_part_size_low,y
 	cmp	valid_dos_part_size_low,x
@@ -1193,6 +1246,7 @@ Lcd12:	txa
 	tax
 	rts
 
+
 Scd16:	clc
 	ldy	mslot
 	lda	shs_part_base_mid,y
@@ -1203,22 +1257,27 @@ Scd16:	clc
 	sta	shs_part_base_high,y
 	rts
 
+
 ; valid DOS parition sizes
 valid_dos_part_size_high:
-	fcb	(140*4)>>8
-	fcb	(280*4)>>8
-	fcb	(400*4)>>8
-	fcb	(800*4)>>8
+	fcb	(140*4)>>8	; one 140 KiB
+	fcb	(280*4)>>8	; two 140 KiB
+	fcb	(400*4)>>8	; one 400 KiB
+	fcb	(800*4)>>8	; two 400 KiB
 
 valid_dos_part_size_low:
-	fcb	(140*4)&$ff
-	fcb	(280*4)&$ff
-	fcb	(400*4)&$ff
-	fcb	(800*4)&$ff
+	fcb	(140*4)&$ff	; one 140 KiB
+	fcb	(280*4)&$ff	; two 140 KiB
+	fcb	(400*4)&$ff	; one 400 KiB
+	fcb	(800*4)&$ff	; two 400 KiB
 
+dos_max_track:
+	fcb	35		; for 140 KiB drives
+	fcb	50		; for 400 KiB drives
 
-Dcd35:	fcb	$23,$32
-Dcd37:	fcb	$10,$20
+dos_max_sector:
+	fcb	16		; for 140 KiB drives
+	fcb	32		; for 400 KiB drives
 
 Dcd39:	fcb	$02,$06
 Dcd3b:	fcb	$30,$40
@@ -1254,7 +1313,7 @@ Scd56:	jsr	Scd3d		; check parition size and OS
 
 Lcd63:	lda	#os_dos		; set OS to DOS (but don't yet set OS check)
 	sta	shs_os_code,y
-	jsr	Sccfb		; check DOS parition size
+	jsr	dos_check_partition_size
 	bmi	Lcd97
 	bcc	Lcd91
 	lda	shs_part_base_mid,y
